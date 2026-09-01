@@ -285,7 +285,7 @@ que Streamlit Cloud pueda leerlo.
 | 🛠️ Disponibilidad (v4) | despacho térmico, matriz disponibilidad × precio y **El Niño en dinero** (funciona sin `v4_mensual.csv`: cae a la base diaria de la ventana) |
 | 🕐 Perfiles × hora | cálculos del notebook uno por uno: heatmap 08 (promedio diario), pequeños múltiplos 08b con pico anotado, precio día × hora (09), costo marginal v4 (02/03), panel ENSO de 4 filas (v3 c21), climatología por fase con ★ (v3 c24) y el explorador de **ámbito operativo/geográfico** (08d/08e/08g/08h) |
 | 🔥 CO₂ y economía ENSO | bloque de emisiones v3 (celdas 13-16: emisiones por combustible e intensidad, perfil horario vs solar, Pareto de emisoras, correlación extendida) y bloque v4 (celdas 14-17: impacto ENSO con rezagos 0-12 m, Δ% por episodio, tabla de impacto y hallazgos v4 en tabla legible) |
-| 🕸️ Precios nodales | **módulo de tesis (v4.2), fuera del notebook**: OPF DC calibrado con la ventana cargada, LMP por nodo, reglas de liquidación, capa estocástica, almacenamiento, coberturas y estrategia — 23 figuras y 12 escenarios justificados (ver §4c) |
+| 🕸️ Precios nodales | **módulo académico (v4.2), fuera del notebook y con coautor propio**: OPF DC calibrado con la ventana cargada, topología y regiones explicadas, LMP por nodo, reglas de liquidación, refuerzos hipotéticos de la red con su OPF por candidato, capa estocástica de dos etapas, GARCH/VaR, almacenamiento, coberturas, poder de mercado y **aprendizaje por refuerzo (Q-learning multiagente)** — 26 figuras en 11 grupos y 12 escenarios justificados (ver §4c) |
 | 📚 Datos y bitácora | linaje de la extracción, tablas descargables, bitácora, exploradores (planta, río, catálogos) y JSON del contexto |
 
 A pedido del autor del tablero se retiraron de la pestaña 🌊 El Niño las subpestañas *Resagos ONI →
@@ -306,15 +306,77 @@ Streamlit 1.x ni cuando llegue la 2.x. Los `st.plotly_chart` llevan `key` única
 figuras idénticas (p. ej. el heatmap «Todo el SIN» repetida en dos pestañas) no corten la página
 con `StreamlitDuplicateElementId`.
 
-## 4c · Pestaña 🕸️ Precios nodales (módulo de tesis, v4.2)
+## 4c · Pestaña 🕸️ Precios nodales (módulo académico, v4.2)
 
-**No está en el notebook v1-v4.** Es el anexo académico del tablero: implementa los objetivos
-**a, b y c** de la propuesta de tesis doctoral *Modelamiento estocástico de los precios de la
-energía en un mercado de precios marginales nodales con alta componente de generación variable*
-sobre la **misma ventana ya cargada** por las demás pestañas (`ctx` común: no vuelve a llamar a la
-API). Todo el módulo vive al final de `app.py`, sección `# 10 · MÓDULO «SIN NODAL» (v4.2)`, y se
-verifica solo: `tools/verificar_celdas.py` exige paridad exacta entre `FIGURES_NODAL` y
-`NODAL_TESIS` (23 figuras con su ancla §/Eq. de la propuesta o su «objetivo»).
+**No está en el notebook v1-v4.** Es el anexo académico del tablero, escrito por
+**Libardo Acero García** (ingeniero eléctrico, docente y especialista en regulación energética, asesor de la CREG,
+dos maestrías y Magíster en Finanzas, doctorando UNAL) como desarrollo de precios nodales dentro de
+su trabajo de grado doctoral; la base de datos y las pestañas previas siguen siendo de Manuel
+Fajardo (v1-v2) y del profesor Sergio Rivera (v3-v4).
+
+El módulo implementa los **tres objetivos** que la propia pestaña enuncia al abrir — no se citan
+documentos, secciones ni numeración de ecuaciones de ningún trabajo previo; cada figura responde a
+un objetivo y declara de dónde sale cada número:
+
+* **a** · cuánto cambian precio, congestión y costo del sistema cuando la señal pasa de uninodal a
+  nodal (congestión, pérdidas, estocástica de solar/eólica/demanda y desconexión voluntaria).
+* **b** · cómo responde esa señal a la configuración del sistema: topología, refuerzos de red,
+  almacenamiento, flujos óptimos, despacho simplificado y reglas de formación de precio.
+* **c** · cómo se comportan los LMP resultantes: dispersión y riesgo, cobertura ante volatilidad con
+  alta penetración variable y comportamientos estratégicos (incluido el aprendizaje por refuerzo).
+
+Todo corre sobre la **misma ventana ya cargada** por las demás pestañas (`ctx` común: no vuelve a
+llamar a la API). El módulo vive al final de `app.py`, sección `# 10 · MÓDULO «SIN NODAL» (v4.2)`, y
+se verifica solo: `tools/verificar_celdas.py` exige paridad exacta entre `FIGURES_NODAL` y
+`NODAL_OBJETIVOS` (26 figuras, cada una con su etiqueta `objetivo a/b/c` y su fuente), revisa que
+ningún texto del módulo cite documentos externos ni su numeración de secciones y ecuaciones,
+y comprueba que existan los bloques exigidos en la revisión (`AUTOR_NODAL`, `_bloque_regiones_nodales`, `NODAL_REFUERZO_TEXTO`,
+`NODAL_COMBINACIONES`, `despacho_estocastico`, `emparejar_cv`).
+
+**Regiones y topología, explicadas en la propia pestaña** (`_bloque_regiones_nodales` +
+`fig_nodal_topo`). Tres reglas mandan: (i) la **unidad espacial es la subregión XM**, porque es el
+nivel al que `servapibi` publica demanda y generación; (ii) cada nodo se arma por **toponimia** de
+las plantas (`KEYWORDS_ZONA`: se revisa el nombre de planta, de municipio y de unidad de generación
+antes de asignar el nodo, y la pestaña reporta cuántas plantas quedaron sin nodo como control); (iii) cada nodo lleva el **peso calibrado** de `PESO_DEMANDA_NODAL` (CEN 26 %, NOR 24 %, CAR 21 %, OCC
+12 %, SUR 8 %, GUJ 4,5 %, ORI 4,5 %), porque XM no publica demanda por subregión. Con eso, **10
+nodos** es el punto donde la malla aún distingue los patrones reales (Caribe, Guajira, Nordeste,
+Bogotá-Cundinamarca, OCC-SUR, Oriente) sin volver inmanejable el OPF: `subregion` baja a 7 nodos y
+`fina` sube a 12 (separando Bogotá, Norte de Santander y los llanos); la figura de topología muestra
+las 18 trazas (una por rama y su contraria), los círculos separados y el % de uso visible.
+
+**Refuerzos hipotéticos de la red.** `refuerzos_candidatos()` genera el **conjunto** (5-6 obras) desde
+la propia congestión medida — no un catálogo fijo: toma las ramas con mayor uso relativo, las ordena
+por aporte a la congestión y propone dos intensidades (0,35 y 0,75 de la capacidad existente) más una
+obra nueva `NUEVA` que crea rama con `x_pu = 0,03` y **recalcula la matriz PTDF** (`red_con_refuerzo`).
+Cada candidato se liquida con el mismo OPF y devuelve congestión, λ medio, CO₂ y ahorro por día, con
+payback sobre `0,32 M COP/MW` (orden de magnitud declarado, **no** cifra UPME/ISA/PER); si el ahorro
+no pasa de 1,0 M COP/año el payback se muestra como no aplicable. El bloque cierra con el **paquete
+completo** para leer los rendimientos decrecientes, y `fig_nodal_refuerzos` lo dibuja en abanico.
+
+**Capa estocástica de dos etapas.** `gen_escenarios` simula (log-normal solar, Weibull eólica gamma de
+demanda, ρ entre nodos y ρ cruce sol-viento), `emparejar_cv` corrige la dispersión con `x' = μ + α(x−μ)`
+para que el CV eólico simulado iguale al medido (tope `α ≤ 12`, con panel que muestra por qué nodo y
+por qué escena se modifica cada variable), `reducir_escenarios` cierra con k-medias, y
+`despacho_estocastico` liquida **cada escenario con el OPF** (no con una fórmula): da Wait-and-See,
+Here-and-Now y VSS, además de la banda p05/p50/p95 del precio horario y `p(escasez)`. La pestaña
+permite apagar la segunda etapa para ver solo las bandas (rápido) o encenderla para el VSS real.
+
+**Aprendizaje por refuerzo, en el centro de la pestaña.** `NODAL_REFUERZO_TEXTO` lo enuncia arriba:
+`fig_nodal_ql` (Q-learning multiagente con λ endógeno: los agentes aprenden a ofertar contra el mismo
+ascenso dual que usa el OPF, y el déficit se mide contra el cierre exacto del balance) y `fig_nodal_ap`
+(mark-up aprendido por regla de liquidación: la señal nodal castiga el recargo porque el agente ya no
+puede ponerlo a todo el sistema). Es el lente estratégico del objetivo *c*, no un adorno: los
+controles del episodio, ε y la resolución están en la propia figura.
+
+**Tres combinaciones de impacto** (`NODAL_COMBINACIONES`, bajo `fig_nodal_combinaciones`): red +
+recurso + demanda interrumpible liquidadas con las cuatro reglas y el mismo OPF, con el delta de λ,
+congestión, CO₂ y costo contra la línea de fondo; y las 3 obras estructurales de
+`NODAL_OBRAS_ESTRUCTURALES` (ORI→SUR 700 MW, CAR→OCC 900 MW, GUJ→NOR 800 MW) entran como paquete.
+
+**Convención de leyenda.** Cada figura abre con un bloque `📖` de cinco campos —qué muestra, decisión
+o lectura, objetivo al que responde, supuestos/limitación y fuente de cada número— y el título del
+desplegable termina en `· objetivo a/b/c`. Los campos los normaliza `_leyenda()` (con `_lim()` para
+no dejar dobles espacios ni separadores colgando cuando un texto se acorta).
 
 **Enfoque de la v4.2: el efecto positivo.** La pregunta no es si el precio sube o baja al pasar de
 uninodal a nodal, sino **qué gana el sistema** cuando el precio lleva información de lugar. El
@@ -330,7 +392,7 @@ promediarlos.
 **Qué se resuelve.** Red de 7-10 nodos según topología (`subregion`/`media`/`fina`) con flujos de
 distancia DC (`SF = diag(1/x)·A·pinv(Aᵀ·diag(1/x)·A)`), oferta por bloque `c1·P + c2·P²` calibrada
 contra `Precio_Bolsa_Dia` de la ventana (κ y nivel por hora, error medio 0,09 %), LMP por
-`λ_i = λ(1+LF_i) + Σ_k SF_ki·μ_k` (Eq. 2-15…2-21) con multiplicadores por ascenso dual adaptativo,
+`λ_i = λ(1+LF_i) + Σ_k SF_ki·μ_k` con multiplicadores por ascenso dual adaptativo,
 pérdidas iteradas, corte de variable y cuatro reglas de liquidación (`uninodal | zonal |
 híbrido κ | nodal`). Encima: escenarios estocásticos (log-normal solar, Weibull eólica, gamma de
 demanda, ρ entre nodos y ρ cruce sol-viento, reducción k-medias), GARCH(1,1) + VaR/ES con backtest
@@ -352,11 +414,11 @@ resto sigue siendo del lector):
 | `renovables-2030` | solar y eólica ×2 | orden de la expansión del Plan Energético Nacional hacia 2030 sin cambiar la red; muestra el efecto rebote en la rampa de la tarde |
 | `almacenamiento` | batería 6 % (4 h, η 0,88) en CEN+BOG y bombeo 10 % (12 h, η 0,80) | η de catálogo, no de oferta; 4 h = ancho del pico 18-21 h medido en la figura de calibración |
 | `siting-errado` | el mismo activo en GUJ/MAG con EMS de alivio | es el caso que **debe** salir mal: reproduce que el almacenamiento mal sentado no captura renta locacional y pierde dinero |
-| `poder-mercado` | markup 20 % + retiro de energía 25 % sobre el nodo-agente | orden del recargo con el que la SSPD abrió expedientes por poder de mercado (EPM 14/15-mar-2022, Emgesa 11/14/15-mar-2022, citados en §2.5.1); el retiro se pone en modo `energia` porque en `capacidad` no muerde si el bloque no está en su techo |
+| `poder-mercado` | markup 20 % + retiro de energía 25 % sobre el nodo-agente | orden del recargo con el que la SSPD abrió expedientes por poder de mercado (EPM 14/15-mar-2022, Emgesa 11/14/15-mar-2022); el retiro se pone en modo `energia` porque en `capacidad` no muerde si el bloque no está en su techo |
 | `desconexion` | 30 % interrumpible con gatillo en 1 000 COP/kWh | objetivo a explícito: el gatillo queda sobre el precio medio (937), así que el corte solo aparece en las horas pico — que es lo que se quiere probar |
 | `el-nino` | ×0,60 de red + fase ENSO | nivel re-escalado con el Δ% **medido** en la pestaña 🌊 El Niño (`impacto`, 46 meses): precio +61,3 %, aportes 76,0 vs 104,2 %, embalses 60,5 vs 64,6 % → demanda +6,8 %, recurso −2,2 %/−5,4 % |
 | `la-nina` | ×0,85 de red + fase húmeda | espejo con los mismos multiplicadores medidos (197,1 vs 259,9 COP/kWh → ×0,76); muestra que la señal nodal no es un artificio de los meses secos |
-| `hibrida-transicion` | κ = 0,35 + batería 3 % | la transición que discute la propuesta en vez del salto al LMP pleno; κ = 0,35 recupera ~un tercio de la renta de congestión (argumento de diseño de CREG 143/2021) |
+| `hibrida-transicion` | κ = 0,35 + batería 3 % | la transición intermedia que discute la regulación en vez del salto al LMP pleno; κ = 0,35 recupera ~un tercio de la renta de congestión (argumento de diseño de CREG 143/2021) |
 
 **Cómo se conecta el escenario de fase.** `_fase_enso()` no usa factores de libro: lee
 `ctx["impacto"]` (la tabla Δ% por fase que construye la pestaña 🌊 El Niño) y devuelve
@@ -370,8 +432,8 @@ solar/eólica/demanda y desconexión voluntaria): `nodal_cong`, `nodal_descomp`,
 `nodal_flex` (malla flexibilidad × gatillo con los tres percentiles del propio escenario),
 `nodal_reglas`, `nodal_beneficios`. *b* (múltiples configuraciones y topologías, almacenamiento,
 precios por flujos óptimos, despacho simplificado y reglas de formación de precio): `nodal_topo`,
-`nodal_lmp`, `nodal_flujos`, `nodal_desp`, `nodal_valida` (Eq. 2-15 por diferencias finitas,
-|error| ≤ 0,53 %), `nodal_ems`, las 4 reglas en `nodal_reglas`. *c* (comportamiento de los LMP,
+`nodal_lmp`, `nodal_flujos`, `nodal_desp`, `nodal_valida` (λ dual contra ∂Costo/∂D por diferencias
+finitas, |error| ≤ 0,53 %), `nodal_ems`, las 4 reglas en `nodal_reglas`, `nodal_refuerzos`. *c* (comportamiento de los LMP,
 cobertura ante volatilidad con alta penetración variable y comportamientos estratégicos ante la
 señal): `nodal_spread`, `nodal_var`, `nodal_cov`, `nodal_ior`, `nodal_mec`, `nodal_ap`, `nodal_ql`,
 `sensibilidad_penetracion` en `nodal_penetra`.
@@ -382,6 +444,18 @@ congestionadas a ×0,70 con violación 79 MW; CO₂ del día tipo 14 215 t; con 
 λ 1 482,8, dispersión 26,5, 6 h congestionadas y 33,5 GWh/día desconectados con 15 % de demanda
 interrumpible; en la malla de desconexión (El Niño, 30 % al p40) λ baja a 1 492,5, la dispersión a
 43,1, la violación a 260,8 MW y el CO₂ a 13 209 t (−885 t) a cambio de 11,2 GWh/día no servidos.
+
+**Cifras del bloque de refuerzos y de la segunda etapa** (topología `media` × 0,70, ventana
+2026-07-31 → 2026-08-30, 60 escenarios reducidos a 6 típicos, modelo en 4,1 s): base con 3 h
+congestionadas, violación 79,45 MW, uso máximo 107,1 %, λ 937,68 COP/kWh y CO₂ 14 170 t; los
+candidatos individuales mueven λ entre +0,00 y +0,05 COP/kWh con ahorro de −5,0 a +2,9 M COP/día;
+la obra nueva GUJ→NOR +800 MW rinde +26,3 M COP/día (payback 0,03 años) y CAR→OCC +900 MW +2,9 M
+(0,28 años); el **paquete completo** (9 obras, 1 596 M COP) deja **0 h congestionadas**, uso máximo
+63,4 %, violación −79,45 MW y +12,3 M COP/día con payback 0,36 años — menos que la suma de las
+partes, que es exactamente el punto. Estocástica: WS 7 367,7 y HN 8 094,5 M COP/h, **VSS +9,87 %**,
+`p(escasez)` 7,2 %, dispersión 12,5 COP/kWh y banda p05/p50/p95 = 919,8 / 934,3 / 955,7 COP/kWh
+frente al 937,8 COP/kWh del día real. El emparejamiento CV baja el CV eólico de 1,057 a 0,264 con
+α = 0,250; la demanda simulada reproduce el nivel real en −0,15 % y su ρ₁ en 0,843 vs 0,950.
 
 **Límites, declarados en la propia pestaña** (bloque *Supuestos del módulo*, 11 puntos). Red DC de
 una sola etapa sin restricciones de rampa ni reserva rodante; `MW_max` y reactancias de orden de

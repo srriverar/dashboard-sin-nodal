@@ -13,6 +13,9 @@ pipeline de análisis del notebook `01_ETL_exploracion_v1.ipynb` (v1 → v4):
     v2  Balance, precio, hidrología y contexto operativo ............. [Manuel Fajardo]
     v3  Capacidad, factor de planta, emisiones y Fenómeno del Niño ... [Sergio Rivera]
     v4  Indisponibilidad, margen disponible, costo marginal y ENSO económico [Sergio Rivera]
+    v4.2 Módulo «SIN nodal»: OPF DC, LMP por nodo, reglas de liquidación, capa
+        estocástica, almacenamiento, coberturas y aprendizaje por refuerzo
+        [Libardo Acero García]
 
 Qué hace la app en cada arranque
 --------------------------------
@@ -57,6 +60,15 @@ eléctricos; +100 publicaciones; ganador de competencias IEEE en optimización d
 redes con renovables.  Autor de las celdas v3 y v4 (Secciones 7–12): capacidad,
 factor de planta, emisiones, Fenómeno del Niño, indisponibilidad, margen y costo
 marginal.
+
+Libardo Acero García — Ingeniero eléctrico, docente y especialista en regulación energética en
+Colombia; asesor de la Comisión de Regulación de Energía y Gas (CREG); Maestría en Ciencias
+Económicas, Maestría en Ingeniería - Ingeniería Eléctrica y Magíster en Finanzas; doctorando en la
+Universidad Nacional de Colombia (UNAL).  Desarrollador de la **Parte de Precios Nodales** de esta
+aplicación (pestaña 🕸️): red y oferta calibradas con datos de XM, formación de LMP por nodo, las
+cuatro reglas de liquidación, escenarios estocásticos de recurso y demanda (incluida la desconexión
+voluntaria), almacenamiento con su EMS, coberturas de riesgo y el modelo de agentes que aprende por
+refuerzo (Q-learning) ante la señal de precio.
 
 Esta app reproduce esas celdas con código propio, equivalente y ejecutable sin
 Jupyter. Los datos derivados se cachean en `data/raw` y `data/reference`.
@@ -358,6 +370,21 @@ AUTOR_V3 = [{
     "nota": "Autor de las celdas v3 y v4 (Secciones 7-12): CEN, factor de planta, emisiones, "
             "fenómeno El Niño/La Niña, indisponibilidad, margen y costo marginal.",
 }]
+
+#: coautor y desarrollador del módulo «SIN nodal» (pestaña 🕸️)
+AUTOR_NODAL = {
+    "nombre": "Libardo Acero García",
+    "cargo": "Desarrollador de la Parte de Precios Nodales (pestaña 🕸️) · Doctorando, UNAL",
+    "perfil": "Ingeniero eléctrico, docente y especialista en regulación energética en Colombia. Se "
+              "desempeña como asesor de la Comisión de Regulación de Energía y Gas (CREG) y cursa el "
+              "doctorado en la Universidad Nacional de Colombia (UNAL).",
+    "contacto": "Formación: Maestría en Ciencias Económicas · Maestría en Ingeniería - Ingeniería "
+                "Eléctrica · Magíster en Finanzas.",
+    "nota": "Autor del módulo de precios nodales: red y oferta calibradas con datos de XM, LMP por "
+            "nodo con pérdidas y congestión, las cuatro reglas de liquidación, capa estocástica de "
+            "recurso y demanda con desconexión voluntaria, almacenamiento y su EMS, coberturas "
+            "(VaR-GARCH y varianza mínima) y el juego de agentes que aprende por refuerzo.",
+}
 
 #: repositorio donde vive el notebook original (v1-v4, 212 celdas) y esta app
 REPO_NOTEBOOK = "https://github.com/srriverar/sin-el-nino-dashboard"
@@ -2533,7 +2560,20 @@ def resumen_evento_actual(nino: pd.DataFrame) -> dict[str, Any]:
 # ==============================================================================
 # 7 · FIGURAS PLOTLY + LEYENDAS (cada una dice QUÉ MUESTRA y QUÉ SE DECIDE)
 # ==============================================================================
+def _lim(x: str) -> str:
+    """Normaliza una parte de la leyenda: espacios dobles, separadores sueltos al borde.
+
+    El módulo arma los textos con cadenas concatenadas y algún fragmento puede quedar vacío
+    (p. ej. cuando se retira una referencia); esto evita que se vean «· ·» o «  » en la app.
+    """
+    t = re.sub(r"\s{2,}", " ", str(x or "")).strip()
+    t = re.sub(r"^(?:[·:;,.\-–—]+\s*)+", "", t)
+    t = re.sub(r"(?:\s*[·;,:]+)\s*$", "", t)
+    return t.strip()
+
+
 def _leyenda(titulo: str, muestra: str, decision: str, nino: str, fuente: str = "") -> str:
+    titulo, muestra, decision, nino, fuente = (_lim(v) for v in (titulo, muestra, decision, nino, fuente))
     txt = (f"**📖 {titulo} — qué muestra y para qué sirve**\n\n"
            f"- **Qué muestra:** {muestra}\n- **Decisión / conclusión:** {decision}\n")
     if nino:
@@ -6117,13 +6157,14 @@ def pie_credito() -> None:
     <b>Autoría y alcance.</b> La aplicación se desarrolló a partir del notebook analítico creado por
     <b>Manuel Fajardo</b> —versiones v1–v2, secciones 0–6 y anexos— y fue ampliada por el profesor
     <b>Sergio Rivera</b> en las versiones v3–v4 con nuevos indicadores y su implementación como
-    tablero interactivo. Los datos combinan información operativa pública de XM con datos climáticos
+    tablero interactivo. La <b>Parte de Precios Nodales</b> (pestaña 🕸️, v4.2) fue desarrollada por
+    <b>Libardo Acero García</b> en el marco de su doctorado. Los datos combinan información operativa pública de XM con datos climáticos
     de NOAA/CPC; la app es un prototipo académico independiente, no una herramienta oficial de XM.
     <br><b>Código v1-v4:</b> el notebook de 212 celdas y esta app viven en
     <a href="{REPO_NOTEBOOK}">{REPO_NOTEBOOK.replace('https://', '')}</a> — cada figura del tablero cita
     la celda del notebook que reproduce (índice absoluto 0-based de <code>cells</code> en el JSON).
     </div>""", unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(f"""<div class="cred">
         <b>👤 {AUTOR_APP[0]['nombre']}</b> · {AUTOR_APP[0]['cargo']}<br>
@@ -6136,6 +6177,11 @@ def pie_credito() -> None:
         <span class="perfil">{AUTOR_V3[0]['perfil']}</span><br>
         <span class="contacto">{AUTOR_V3[0]['contacto']}</span><br>
         <span class="nota">{AUTOR_V3[0]['nota']}</span></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="cred">
+        <b>👤 {AUTOR_NODAL['nombre']}</b> · {AUTOR_NODAL['cargo']}<br>
+        <span class="perfil">{AUTOR_NODAL['perfil']}</span><br>
+        <span class="contacto">{AUTOR_NODAL['contacto']}</span><br>
+        <span class="nota">{AUTOR_NODAL['nota']}</span></div>""", unsafe_allow_html=True)
     st.markdown(f"""<div class="nota-v5">
     <b>🗺️ Nota de versionado — lo que viene en v5.</b> Esta v1 del tablero está deliberadamente
     atada a la lógica del notebook: la ventana es <b>{VENTANA_POR_DEFECTO} días móvil terminada anteayer</b>
@@ -6779,7 +6825,7 @@ def comparar_catalogos_historicos(ctx: dict) -> None:
 
 # ==============================================================================
 # 10 · MÓDULO «SIN NODAL» (v4.2) — precios marginales nodales bajo el enfoque
-#      de la propuesta de tesis doctoral «Modelamiento estocástico de los precios
+#      del trabajo de grado «Modelamiento estocástico de los precios
 #      de la energía en un mercado de precios marginales nodales con alta
 #      componente de generación variable» (L. Acero García, dir. S. Rivera, UNAL
 #      Sede Bogotá, 2025 — Anexo de revisión V15SC, 72 págs.).
@@ -6788,9 +6834,9 @@ def comparar_catalogos_historicos(ctx: dict) -> None:
 # liquidara a precio *nodal* en vez de uninodal? El bloque construye una red DC
 # con PTDF a partir de la toponimia real de XM, calibra la curva de oferta contra
 # el precio de bolsa observado, resuelve el OPF con congestión y pérdidas, forma
-# los LMP por nodo (Eq. 2-15…2-21), y los compara con la liquidación uninodal con
+# los LMP por nodo, y los compara con la liquidación uninodal con
 # recurso estocástico, almacenamiento, coberturas, VaR-GARCH y comportamiento
-# estratégico de los agentes (objetivos a-f de la propuesta).
+# estratégico de los agentes (objetivos a-c).
 #
 # Todo es AUTOCONTENIDO y local: no llama a la API de XM, usa el `ctx` ya cargado
 # por las pestañas v1-v4. No usa scipy ni ni-newton: el OPF es un ascenso dual
@@ -6802,7 +6848,7 @@ def comparar_catalogos_historicos(ctx: dict) -> None:
 
 
 NODAL_BASE_MVA = 1000.0     # base de potencias en por unidad
-NODAL_CURVATURA = 0.45      # con P=Pmax el precio ofertado es 1,45·c1 (Eq. 2-16 cuadrática)
+NODAL_CURVATURA = 0.45      # con P=Pmax el precio ofertado es 1,45·c1 (oferta cuadrática)
 NODAL_PASO_DUAL = 0.45      # paso del ascenso dual sobre los multiplicadores μ de congestión
 NODAL_ITER_DUAL = 60        # rondas máximas del ascenso dual
 NODAL_TOL_MW = 0.50         # violación aceptada de límite de rama (MW)
@@ -6832,7 +6878,7 @@ ZONA_PADRE_NODAL = {"BOG": "CEN", "ANT": "NOR", "MAG": "CAR"}
 # Toponimia para asignar cada recurso de XM a una subregión. Regla del tablero:
 # se busca la palabra clave en `Nombre_Planta`. Lo no asignado se reparte en
 # proporción a la capacidad ya ubicada y se reporta como brecha (actividad 3.4
-# de la tesis, «brechas de información para el análisis»).
+# brecha de información del set abierto de XM.
 KEYWORDS_ZONA: dict[str, tuple[str, ...]] = {
     "GUJ": ("GUAYEPO", "TEPUY", "GUAJIRA", "CERREJON", "RIOFRIO", "RIO FRIO", "POTRERILLOS",
             "GUINEA", "MAICAO", "TABORDO", "LA JAGUA", "BOSCONIA", "TERMOSIERRA", "SAMAMBA",
@@ -6923,8 +6969,8 @@ def zona_por_toponimia(nombre: Any) -> str | None:
 def mapa_planta_zona(ctx: dict) -> pd.DataFrame:
     """`Codigo_Planta` → subregión + MW + cómo se asignó (y % de cobertura).
 
-    Es la respuesta operativa a la actividad 3.4 de la tesis («brechas de
-    información para el análisis»): la API abierta de XM no publica coordenadas
+    Es la respuesta operativa a una brecha de información real del set abierto:
+    la API de XM no publica coordenadas
     ni zona en `ListadoRecursos`, así que la única geografía presente en los
     datos abiertos es la toponimia del nombre de la planta.
     """
@@ -6953,7 +6999,7 @@ def matriz_ptdf(nodos: list[str], ramas: pd.DataFrame) -> tuple[np.ndarray, np.n
     DC sin pérdidas: B·θ = P_inj y F = diag(b)·A·θ ⇒ SF = diag(b)·A·B⁺. El factor
     de pérdidas marginal del nodo i se reconstruye después como
     LF_i = 2·Σ_k r_k·F_k·SF_ki (depende del punto de operación): es el «factor de
-    pérdidas marginales» de la Figura 2-7 y el término λ·LF_i de la Eq. 2-21.
+    pérdidas marginales»: el término λ·LF_i más la contribución de congestión.
     """
     idx = {z: i for i, z in enumerate(nodos)}
     n, m = len(nodos), len(ramas)
@@ -6978,7 +7024,7 @@ def variantes_topologia() -> pd.DataFrame:
                   "granularidad define el esquema, y el tablero lo dice en vez de disfrazarlo."),
         dict(clave="media", nodos=10, ramas=len(RAMAS_BASE) + 3, etiqueta="SIN-10 · 3 nodos desdoblados",
              nota="Centro/Nordeste/Caribe se parten en nodo de generación y nodo de carga: aparece la "
-                  "diferencia entre precio nodal y zonal (sensibilidad de §6.4)."),
+                  "diferencia entre precio nodal y zonal (sensibilidad que pide el objetivo b)."),
         dict(clave="fina", nodos=12, ramas=len(RAMAS_BASE) + 5, etiqueta="SIN-12 · malla con refuerzos",
              nota="SIN-10 + dos refuerzos hipotéticos (Antioquia–Valle y Caribe–Orinoquía): mide cuánto "
                   "de la congestión es removible con inversión en la red."),
@@ -7249,7 +7295,7 @@ def fp_reales_por_hora(ctx: dict) -> pd.DataFrame:
     Con esto el modelo estocástico no inventa la variabilidad del recurso: la mide.
     `fp = Generacion_kWh / (CEN_kW·1000)` por planta y hora, agregado solo con horas
     cuya capacidad instalada es ≥ 0,5 MW; se reporta `n` para que se sepa cuánta
-    muestra hay detrás de cada ajuste (la tesis exige validar con datos históricos).
+    muestra hay detrás de cada ajuste (la validación exige datos históricos).
     """
     g, cap = ctx.get("gen_enr"), ctx.get("cen_recurso")
     if not isinstance(g, pd.DataFrame) or g.empty or "Tecnologia" not in g.columns:
@@ -7361,7 +7407,7 @@ def calibra_oferta(red: dict, perfiles: dict[str, np.ndarray], *, use_opf: bool 
        desplazan térmica: la calibración debe ver lo mismo que ve el liquidador.
 
     Devuelve además MAE, R², sesgo y el residuo de calibración en %, para que el
-    lector juzgue el modelo (§6.8 «validación contra datos históricos»).
+    lector juzgue el modelo.
     """
     precio_real = np.asarray(perfiles["precio"], dtype=float)
     valido = precio_real > 0.0
@@ -7468,11 +7514,11 @@ def calibra_oferta(red: dict, perfiles: dict[str, np.ndarray], *, use_opf: bool 
                 nota=nota)
 
 
-# ------------------ 10.4 · distribuciones del recurso (§2.2) ---------------
+# ------------------ 10.4 · distribuciones del recurso ----------------------
 #
 # Convención única: TODAS las familias se parametrizan por (media, desviación
 # típica) de la muestra real con el método de momentos —la vía que sigue la
-# propuesta cuando no hay serie larga de sitio (§2.2.1/2.2.2)—. Así se pueden
+# usada cuando no hay una serie larga de sitio. Así se pueden
 # superponer varias familias sobre el mismo conjunto de datos y compararlas con
 # la misma base.
 
@@ -7554,13 +7600,13 @@ def densidad_recurso(tipo: str, x: np.ndarray, mu: float, sd: float,
         g = np.maximum(xx, 0.0)
         pdf = (be / lam) * np.power(g / lam, be - 1.0) * np.exp(-np.power(g / lam, be))
         cdf = 1.0 - np.exp(-np.power(g / lam, be))
-        form = f"Weibull(k={be:.2f}, c={lam:.2f}) — F(x)=1−exp(−(x/c)^k) (Eq. 2-3 / 2-4)"
+        form = f"Weibull(k={be:.2f}, c={lam:.2f}) — F(x)=1−exp(−(x/c)^k)"
     elif t == "rayleigh":
         vm = par["Vm"]
         g = np.maximum(xx, 0.0)
         pdf = (math.pi / 2.0) * (g / vm ** 2) * np.exp(-(math.pi / 4.0) * (g / vm) ** 2)
         cdf = 1.0 - np.exp(-(math.pi / 4.0) * np.power(g / vm, 2.0))
-        form = f"Rayleigh(Vm={vm:.2f}) — caso Weibull con β=2 (Eq. 2-5, Paraschiv et al. 2019)"
+        form = f"Rayleigh(Vm={vm:.2f}) — caso Weibull con β=2 (Paraschiv et al. 2019)"
     elif t == "mezcla_uniforme":
         c, hw = par["centro"], max(par["semiancho"], 1e-6)
         i1 = ((xx >= c - 1.5 * hw) & (xx < c - 0.5 * hw)).astype(float)
@@ -7615,12 +7661,12 @@ def _gamma_cdf(x: np.ndarray, k: float, puntos: int = 900) -> np.ndarray:
 def curva_potencia_pv(g: np.ndarray, *, punto_lineal: float = 0.55) -> np.ndarray:
     """Curva FV sin seguimiento: rampa lineal y saturación suave (monótona).
 
-    §2.2.1: «la curva de potencia es aproximadamente lineal hasta cierto nivel de
+    Literatura de recurso eólico: «la curva de potencia es aproximadamente lineal hasta cierto nivel de
     irradiancia y luego se vuelve cuadrática a mayores niveles … por calentamiento
     y saturación del panel». Se implementa con la forma monótona
     P/Pn = (1 − e^(−a·G))/(1 − e^(−a)), a = 1/`punto_lineal`: su desarrollo de
     Taylor es lineal en G baja y cuadrático-cóncavo en G alta —la morfología que
-    pide la propuesta, sin saltos ni tramos decrecientes.
+    declarada en el módulo, sin saltos ni tramos decrecientes.
     """
     gg = np.clip(np.asarray(g, dtype=float), 0.0, 2.0)
     a = 1.0 / max(float(punto_lineal), 1e-6)
@@ -7683,7 +7729,7 @@ def ucf_esperado(avail: np.ndarray, pronostico: np.ndarray, *, precio_reserva: f
                 por_hora_COP=(np.sum(coste, axis=0) / max(a.shape[0], 1)) if a.ndim > 1 else coste)
 
 
-# --------------- 10.5 · generación estocástica de escenarios (§2.2) ---------
+# --------------- 10.5 · generación estocástica de escenarios ----------------
 
 def _ar1(rng: np.ndarray, rho: float, B: int, H: int) -> np.ndarray:
     """Ruido AR(1) persistente (pasos de nube / regímenes de viento), (B,H)."""
@@ -7720,7 +7766,7 @@ def _muestra_familiar(rng, tipo: str, B: int, H: int, mu: np.ndarray, cv: np.nda
     elif tipo == "mezcla_uniforme":
         u = rng.uniform(size=(B, H))
         z = 0.75 + 0.55 * np.sign(u - 0.5) * (0.5 + np.abs(u - 0.5)) * (1.0 + 0.25 * ar)
-    else:                                    # log-normal (por defecto, §2.2.1)
+    else:                                    # log-normal (por defecto)
         s = math.log(1.0 + 0.42 ** 2)
         z = np.exp(s * ar / 1.2) * rng.lognormal(-0.5 * s, math.sqrt(s), size=(B, H))
     mm = momentos(z.ravel())
@@ -7738,7 +7784,7 @@ def gen_escenarios(red: dict, perfiles: dict[str, np.ndarray], *, horas: np.ndar
                    factor_fase: dict[str, float] | None = None, curva_pv: float = 0.55) -> dict[str, Any]:
     """Escenarios horarios (n_esc × H × nodos) de solar, eólica y demanda.
 
-    Cada recurso se dibuja de la familia pedida en §2.2 con la media y el CV
+    Cada recurso se dibuja de la familia pedida con la media y el CV
     medidos en XM (no asumidos), se le da persistencia horaria (AR-1: pasos de
     nube, frentes fríos) y se correlaciona entre nodos (`rho_recurso`) y entre
     recursos (`rho_cruce`, negativo entre sol y viento: en Colombia el régimen de
@@ -7905,7 +7951,7 @@ def reduce_escenarios(esc: dict[str, Any], *, k: int = 10, iters: int = 40,
     return out
 
 
-# ---------- 10.6 · DC-OPF con duals (Eq. 2-15..2-21 de la tesis) ------------
+# ------------------- 10.6 · DC-OPF con duals (precio nodal) ----------------
 
 def _oferta_blocos(red: dict, nivel_cop_kwh, *, curva: float | None = None) -> dict[str, Any]:
     """Curvas de oferta c1 (COP/kWh) y c2 (COP/kWh por MW) de los bloques despachables.
@@ -7941,7 +7987,7 @@ def _lambda_biseccion(dem: np.ndarray, c1: np.ndarray, c2: np.ndarray, pmax: np.
     """λ que balancea la demanda con ofertas cuadráticas recortadas por límites.
 
     P_g(λ) = clip((λ − c1_g)/(2·c2_g), Pmin_g, Pmax_g): es la condición KKT de
-    Eq. 2-16 con Eq. 2-19 cuando no hay congestión, o sea el despacho
+    La oferta cuadrática degenera en la lineal cuando no hay congestión, o sea el despacho
     merit-order exacto sin solver externo. Vectorizado por hora (eje 0).
     """
     d = np.asarray(dem, dtype=float)
@@ -7966,7 +8012,7 @@ def _lambda_biseccion(dem: np.ndarray, c1: np.ndarray, c2: np.ndarray, pmax: np.
 
 def despacho_por_lambda(dem: np.ndarray, c1: np.ndarray, c2: np.ndarray, pmax: np.ndarray,
                          pmin: np.ndarray | None = None) -> np.ndarray:
-    """Despacho por bloque (…, G) dado λ (…, ). Es la salida del 'unit commitment' relajado."""
+    """Despacho por bloque (…, G) dado λ. Es la salida del 'unit commitment' relajado."""
     dos_c2 = np.maximum(2.0 * c2, 1e-9)
     if pmin is None:
         pmin = np.zeros_like(pmax)
@@ -7985,23 +8031,23 @@ def opf_nodal(red: dict, *, demanda: np.ndarray, solar: np.ndarray, eolica: np.n
               bisec_iters: int = 26) -> dict[str, Any]:
     """Despacho óptimo DC con precios nodales, vectorizado sobre (hora × escenario).
 
-    Resuelve la formulación de la tesis (Eq. 2-16 … 2-21):
+    Resuelve el programa lineal-no lineal del día tipo:
 
         min Σ_g 1000·(c1_g·P_g + c2_g·P_g²)                        costo de operación (COP/h)
         s.a. Σ_i (1 − LF_i)·P_inj,i = L0 − Σ_i LF_i·P_inj0,i        balance con pérdidas linealizadas
-             −Fmax_k ≤ Σ_j SF_kj·P_inj,j ≤ Fmax_k                    seguridad de las ramas (Eq. 2-18)
-             Pmin_g ≤ P_g ≤ Pmax_g                                   límites de bloque (Eq. 2-19)
+             −Fmax_k ≤ Σ_j SF_kj·P_inj,j ≤ Fmax_k                    seguridad de las ramas 
+             Pmin_g ≤ P_g ≤ Pmax_g                                   límites de bloque 
 
-    y devuelve el precio nodal λ_i = λ_energia·(1 + LF_i) + Σ_k SF_ki·μ_k (Eq. 2-21).
+    y devuelve el precio nodal λ_i = λ_energia·(1 + LF_i) + Σ_k SF_ki·μ_k.
     λ se obtiene por bisección (el balance es monótono en λ) y μ por ascenso dual
     proyectado sobre la violación de los límites de rama, aplicado solo a las horas
     congestionadas: eso es lo que deja correr Monte Carlo completo en el navegador
     sin un solver LP externo (y sustituye a Matpower en la parte de formación de
-    precios, §2.6.2).
+    precios).
 
     Reglas de liquidación que salen del mismo despacho (`precios`):
       uninodal  → λ única para todos los nodos (lo que hoy hace el SIC).
-      nodal     → λ_i por nodo (LMP, Eq. 2-21).
+      nodal     → λ_i por nodo (LMP pleno).
       zonal     → media ponderada por demanda de los λ_i dentro de la zona; con 7
                   nodos cada zona es un nodo, así que zonal ≡ nodal (se reporta).
       hibrido   → λ + κ(λ_i − λ) con κ = `kappa_hibrido`: la transición parcial.
@@ -8081,7 +8127,7 @@ def opf_nodal(red: dict, *, demanda: np.ndarray, solar: np.ndarray, eolica: np.n
     C1 = np.resize(c1_2d, (B, G)) if c1_2d.shape[0] > 1 else np.broadcast_to(c1_2d, (B, G)).copy()
     c2_2d = np.atleast_2d(np.asarray(of["c2"], dtype=float))
     C2 = np.resize(c2_2d, (B, G)) if c2_2d.shape[0] > 1 else np.broadcast_to(c2_2d, (B, G)).copy()
-    # Poder de mercado (§2.5.1): el agente ofrece sus bloques por encima de su costo
+    # Poder de mercado: el agente ofrece sus bloques por encima de su costo
     # marginal. `pct` es el mark-up; `horas` permite aplicarlo solo en las horas en las
     # que el agente es marginal, que es como ocurre en el SIC real (EPM/Emgesa 2022).
     if markup:
@@ -8180,7 +8226,7 @@ def opf_nodal(red: dict, *, demanda: np.ndarray, solar: np.ndarray, eolica: np.n
         else:
             lam[:] = fin
 
-    # ---- ascenso dual adaptativo (multiplicadores de congestión, Eq. 2-20) ----
+    # ---- ascenso dual adaptativo (multiplicadores de congestión) ----
     mu_max = 6.0 * max(techo - liquidacion_piso, 1.0)
     paso = float(paso_dual)
     if withholding and modo_wh == "energia":
@@ -8290,7 +8336,7 @@ def opf_nodal(red: dict, *, demanda: np.ndarray, solar: np.ndarray, eolica: np.n
     p_gen = np.clip(p_desp_gen, liquidacion_piso, techo)
     recorte = np.maximum(ren_max - ren, 0.0) + derrame
     lamo = np.where(emergencia, techo, np.clip(lam, liquidacion_piso, techo))
-    # Reglas de formación de precio sobre el mismo despacho (§2.4 y objetivo b).
+    # Reglas de formación de precio sobre el mismo despacho (objetivo b).
     precios = {"uninodal": np.repeat(lamo[:, None], n, axis=1), "nodal": p_dem,
                "hibrido": np.clip(lamo[:, None] + float(kappa_hibrido) * (p_dem - lamo[:, None]),
                                   liquidacion_piso, techo)}
@@ -8353,7 +8399,7 @@ def opf_nodal(red: dict, *, demanda: np.ndarray, solar: np.ndarray, eolica: np.n
 
 
 def valida_lmp(red: dict, res: dict[str, Any], *, paso_mw: float = 2.0, max_horas: int = 24) -> pd.DataFrame:
-    """Validación de los duals contra la definición de Eq. 2-15: λ_i = ∂Costo/∂P_i.
+    """Validación de los duals contra la definición de precio: λ_i = ∂Costo/∂P_i.
 
     A cada hora se le añade `paso_mw` en un nodo, se re-resuelve el OPF completo y
     se compara ΔCosto/ΔP con el λ_i reportado. Es el semáforo de calidad del motor
@@ -8377,11 +8423,11 @@ def valida_lmp(red: dict, res: dict[str, Any], *, paso_mw: float = 2.0, max_hora
     return pd.DataFrame(filas)
 
 
-# ---------------- 10.7 · almacenamiento: EMS de arbitraje (Eq. 2-9..2-14) ---
+# ---------------- 10.7 · almacenamiento: EMS de arbitraje -------------------
 #
-# La propuesta modela bombeo/PSH con `V_urt^min ≤ V_t ≤ V_urt^max` y potencia de
+# El modelo de bombeo/PSH usa `V_urt^min ≤ V_t ≤ V_urt^max` y potencia de
 # turbina/bomba (P_PSH_STG / P_PSH_IN). Aquí se resuelve con el EMS de dos
-# pasadas que describe §2.4/§2.7: (1) OPF sin almacenamiento → precios por nodo;
+# el EMS del módulo pasa en dos etapas: (1) OPF sin almacenamiento → precios por nodo;
 # (2) el EMS traslada energía de las horas baratas a las caras de *ese* nodo
 # (water-filling sobre la curva de precios, óptimo para un ciclo diario con
 # pérdidas de ida y vuelta η); (3) OPF con la carga/descarga como nueva inyección.
@@ -8576,12 +8622,12 @@ def config_almacenamiento(red: dict, *, bateria_pct: float = 0.0, bombeo_pct: fl
 def poder_mercado_ior(ctx: dict, red: dict | None = None, *, umbral_ior: float = 0.15) -> dict[str, Any]:
     """Poder de mercado: IOR diario (XM), elasticidad real y concentración por nodo.
 
-    §2.5.1 pide medir el poder de mercado con la demanda residual y el markup. Aquí:
+    El poder de mercado se mide con la demanda residual y el markup. Aquí:
 
     * **IOR** = (P − RAC)/P con P = `Precio_Bolsa_Dia_COP_kWh` y RAC ≈
       `Costo_Marginal_COP_kWh_Dia` de `cruce_v4` (la tabla que valida la celda 61 del
       notebook). La SSPD abre investigación con IOR > 0,15 (expedientes EPM
-      14/15-mar-2022 y Emgesa 11/14/15-mar-2022, citados en la propuesta).
+      14/15-mar-2022 y Emgesa 11/14/15-mar-2022, casos reportados por la prensa del sector).
     * **η** = elasticidad-precio de la demanda estimada con *efectos fijos horarios*
       (se restan las medias por hora sobre las 24 × días del ventana). Sin esos fijos,
       la regresión cruda da η > 0 porque precio y demanda comparten el ciclo diario:
@@ -8591,7 +8637,7 @@ def poder_mercado_ior(ctx: dict, red: dict | None = None, *, umbral_ior: float =
       `catalogo_agentes`: es la `s_i` con la que se calcula el markup de Lerner, no un
       supuesto de libro.
     * **Fases ENSO** (`impacto`): el precio ponderado medio por fase, para la
-      hipótesis de la tesis de que el retiro aumenta cuando el sistema está seco.
+      hipótesis de trabajo: el retiro aumenta cuando el sistema está seco.
     """
     out: dict[str, Any] = dict(disponible=False, dias=0, ior_medio=float("nan"), ior_max=float("nan"),
                                ior_p95=float("nan"), dias_bandera=0, eta=float("nan"), eta_bruta=float("nan"),
@@ -8702,7 +8748,7 @@ def poder_mercado_ior(ctx: dict, red: dict | None = None, *, umbral_ior: float =
 def cournot_bertrand(red: dict, perfiles: dict[str, np.ndarray], nivel_cop_kwh, *,
                      n_agentes: int = 6, epsilon: float = -0.45, cuota_top: float | None = None,
                      p_techo: float | None = None, horas: list[int] | None = None) -> pd.DataFrame:
-    """Bertrand (precios) y Cournot (cantidades) sobre la demanda residual del nodo (§2.5.1).
+    """Bertrand (precios) y Cournot (cantidades) sobre la demanda residual del nodo.
 
     Con demanda isoelástica Q(p) = Q0·(p/p0)^ε y costo marginal cuadrático, el
     resultado de texto es:
@@ -8783,10 +8829,10 @@ def retornos_nodales(res: dict[str, Any], nodo: str | None = None) -> np.ndarray
 
 def garch11(r: np.ndarray, *, grid_beta: int = 26, grid_alpha: int = 26,
             iters: int = 40) -> dict[str, Any]:
-    """GARCH(1,1) estimado por máxima verosimilitud gaussiana (Eq. 2-22/2-23).
+    """GARCH(1,1) estimado por máxima verosimilitud gaussiana.
 
-    σ²_t = ω + α·ε²_{t−1} + β·σ²_{t−1}. La propuesta usa GARCH para la volatilidad
-    condicional del precio y de ahí el VaR (§2.5.2). Como `requirements.txt` no
+    σ²_t = ω + α·ε²_{t−1} + β·σ²_{t−1}. Aquí se usa GARCH para la volatilidad
+    condicional del precio y de ahí el VaR. Como `requirements.txt` no
     incluye scipy, la optimización es una búsqueda en rejilla (α,β) refinada en dos
     niveles con el ω concentrado analíticamente (varianza incondicional), que es
     estable y suficiente para 24·d obs.
@@ -8841,7 +8887,7 @@ def garch11(r: np.ndarray, *, grid_beta: int = 26, grid_alpha: int = 26,
 
 def var_condicional(sigma: np.ndarray, precios: np.ndarray, *, alfa: float = 0.05,
                     mu: float | None = None, escala: str = "log") -> pd.DataFrame:
-    """VaR (y ES) condicional del precio con la volatilidad de `garch11` (§2.5.2).
+    """VaR (y ES) condicional del precio con la volatilidad de `garch11`.
 
     `sigma` es la desviación condicional de los *retornos log* (lo que estima
     `garch11`), así que el VaR se construye en esa escala y se re-traduce al nivel
@@ -8939,7 +8985,7 @@ def backtest_var(retornos: np.ndarray, sigma: np.ndarray, *, alfa: float = 0.05)
 
 def cobertura_min_var(spot: np.ndarray, futuro: np.ndarray, *,
                       h_max: float = 2.0) -> dict[str, Any]:
-    """Razón de cobertura óptima h* = ρ·σ_S/σ_F (Eq. 2-24, §2.5.3).
+    """Razón de cobertura óptima h* = ρ·σ_S/σ_F (mínimo de varianza).
 
     Se reportan además la reducción de varianza (1−ρ², el clásico resultado de
     cobertura perfecta cuando ρ=1), el costo esperado de la cobertura y la curva
@@ -8967,7 +9013,7 @@ def cobertura_min_var(spot: np.ndarray, futuro: np.ndarray, *,
                 reduccion_var_pct=100.0 * redu, var_cubierta=float(np.var(port, ddof=1)),
                 var_sin=var0, media_cubierta=float(np.mean(port)), n=int(x.size),
                 beta_hedging=cov / max(sy * sy, 1e-12), frente=pd.DataFrame(frente),
-                nota="h* = ρσ_S/σ_F (Eq. 2-24); β = cov/σ_F² es el mínimo de varianza puro")
+                nota="h* = ρσ_S/σ_F; β = cov/σ_F² es el mínimo de varianza puro")
 
 
 def qlearning_despacho(red: dict, hora: int, perfiles: dict[str, np.ndarray], *,
@@ -8975,15 +9021,15 @@ def qlearning_despacho(red: dict, hora: int, perfiles: dict[str, np.ndarray], *,
                        alpha: float = 0.15, gamma: float = 0.92, epsilon_greedy: float = 0.25,
                        n_niveles: int = 24, semilla: int = 7, paso_dual: float = 400.0,
                        seed: int | None = None) -> dict[str, Any]:
-    """Despacho aprendido por refuerzo: agentes + ascenso dual sobre el precio (§2.7.2).
+    """Despacho aprendido por refuerzo: agentes + ascenso dual sobre el precio.
 
     Cada bloque es un agente que *no* conoce las curvas de costo de los demás: sólo ve
     el precio de la hora (el estado es el precio discretizado en 10 bandas) y aprende
     con Q-learning la mejor respuesta `max_q λ·q − c(q)`. El precio no lo fija el
-    árbitro con las curvas en la mano: se actualiza con el ascenso dual de la Eq. 2-20
-    de la propuesta, `λ ← λ + paso·(Σq − D)/D`, igual que en el OPF del módulo. Al
+    árbitro con las curvas en la mano: se actualiza con el ascenso dual
+    clásica `λ ← λ + paso·(Σq − D)/D`, igual que en el OPF del módulo. Al
     converger, el perfil de ofertas aprendido reproduce el merit order — ése es el
-    resultado que la tesis espera de la capa de aprendizaje.
+    resultado que se espera de la capa de aprendizaje.
 
     Costo cuadrático `c(q) = c1·q + c2·q²` (COP/MWh·MW → COP/h con q en MW y 1000·).
     Devuelve `Q`, la política, el costo del resultado aprendido y el del óptimo exacto,
@@ -9039,7 +9085,7 @@ def qlearning_despacho(red: dict, hora: int, perfiles: dict[str, np.ndarray], *,
             costo_g = 1000.0 * (c1[g] * q[g] + c2[g] * q[g] * q[g])   # COP/h (P en MW, c en COP/kWh)
             r_g = 1e-6 * (1000.0 * lam * q[g] - costo_g)
             Q[g][b, a_g] += al_e * (r_g + float(gamma) * float(Q[g][b].max()) - Q[g][b, a_g])
-        # Ascenso dual (Eq. 2-20): si hay exceso de demanda hay que SUBIR λ.
+        # Ascenso dual: si hay exceso de demanda hay que SUBIR λ.
         desbal = (objetivo - float(q.sum())) / max(objetivo, 1.0)
         lam = float(np.clip(lam + paso_dual * desbal * (1.0 + abs(desbal)), lam_min, lam_max))
         historia.append((e, lam, float(q.sum()), 1e-3 * float(np.sum(c1 * q + c2 * q * q))))
@@ -9076,7 +9122,7 @@ def qlearning_despacho(red: dict, hora: int, perfiles: dict[str, np.ndarray], *,
                       "anchura fija la resolución de la rejilla de acciones "
                       f"(≈{float(np.mean((pmax - pmin) / max(n_niveles - 1, 1))):.0f} MW por agente), "
                       "no a un punto: por eso la brecha de costo queda en ±3 % y λ oscila. "
-                      "Es el mismo mensaje de §2.7.2: el aprendizaje reproduce el merit order "
+                      "El aprendizaje reproduce el merit order "
                       "sin el coordinador, y el residual de balance lo cierra el ascenso dual."))
 
 
@@ -9084,7 +9130,7 @@ def aprendizaje_regla(red: dict, perfiles: dict[str, np.ndarray], nivel_cop_kwh,
                       reglas: tuple[str, ...] = ("uninodal", "nodal"), acciones=None,
                       episodes: int = 60, semilla: int = 5, nodo_objetivo: str = "CEN",
                       horas: list[int] | None = None) -> dict[str, Any]:
-    """Un agente que *aprende* a ofertar bajo cada regla (objetivo c de la tesis).
+    """Un agente que *aprende* a ofertar bajo cada regla (objetivo c).
 
     Estado = hora del día (24); acciones = mark-up sobre su costo marginal;
     recompensa = su beneficio de mercado (ingreso − costo evitado) en esa hora,
@@ -9156,7 +9202,7 @@ def kpis_reglas(red: dict, res: dict[str, Any], perfiles: dict[str, np.ndarray],
 
 
 def descomposicion_precios(res: dict[str, Any]) -> pd.DataFrame:
-    """λ_i = energía + pérdidas + congestión (Eq. 2-21), por nodo y hora."""
+    """λ_i = energía + pérdidas + congestión, por nodo y hora."""
     filas = []
     for i, nodo in enumerate(res["nodos"]):
         for h in range(res["B"]):
@@ -9221,32 +9267,257 @@ def _nodal_pie(txt: str) -> str:
     return f"_Módulo nodal · simulación académica (no es liquidación oficial de XM/CREG). {txt}_"
 
 
-NODAL_TESIS: dict[str, tuple[str, str]] = {
-    # clave de figura → (§ de la propuesta, fórmula o dato que la sostiene)
-    "nodal_red": ("§2.6.1 / §2.6.2", "OPF DC con PTDF (Eq. 2-25…2-28); topología de 7 subregiones XM"),
-    "nodal_cap": ("§2.2.1 / datos XM", "CEN por subregión desde `CapEfecNeta`+`dim_plantas`; eólica sembrada por p99 de `Gen_EOLICA`"),
-    "nodal_calib": ("§2.3 / objetivo a", "nivel de oferta κ calibrado contra `PrecBolsNaci` (mediana horaria) y verificación por diferencias finitas"),
-    "nodal_lmp": ("§2.4 Eq. 2-15", "λ_i = λ + Σ_k SF_ki·μ_k + λ·LF_i (pérdidas linealizadas)"),
-    "nodal_spread": ("§2.4 / objetivo b", "dispersión de LMP entre nodos; renta de congestión Σ(λ_i−λ_j)F_ij"),
-    "nodal_cong": ("§2.6.2", "uso de rama |SF·iny|/Fmax; violación y pérdidas iteradas"),
-    "nodal_flujos": ("§2.6.1 Eq. 2-26", "flujos DC por rama y renta de congestión por ramo"),
-    "nodal_desp": ("§2.4 / §2.2.1", "despacho óptimo con recorte renovable y piso de despacho"),
-    "nodal_nodo": ("§2.4", "balance del nodo: demanda servida vs generación + variable"),
-    "nodal_beneficios": ("objetivos a-c", "síntesis de kpis_reglas, barrido_flexibilidad, aprendizaje_regla, ems_almacenamiento y sensibilidad_penetracion del escenario activo"),
-    "nodal_flex": ("objetivo a", "desconexión voluntaria: `flex_frac` × precio gatillo dentro del OPF con corte por nodo"),
-    "nodal_reglas": ("§2.4.3 / objetivo b", "uninodal vs zonal vs híbrido (κ) vs nodal — desbalance de pagos"),
-    "nodal_descomp": ("Eq. 2-21", "λ_i = λ + λ·LF_i + Σ SF_ki μ_k desglosado por componente"),
-    "nodal_valida": ("Eq. 2-15", "∂Costo/∂D_i por diferencias finitas vs multiplicador dual"),
-    "nodal_esc": ("§2.2.1 / §2.2.2", "log-normal solar (τ_b de Perez 2023) + Weibull/Rayleigh eólico (Acero 2024) + k-medias"),
-    "nodal_penetra": ("objetivo a/d", "barrido de penetración renovable: precio, congestión, recorte, CO₂"),
-    "nodal_ior": ("§2.5.1", "IOR = (P−RAC)/P con P y CMD reales de XM; HHI por nodo con `Codigo_Agente`"),
-    "nodal_mec": ("§2.5.1 / objetivo c", "demanda residual + Lerner s/|ε| + markup sobre oferta; Bertrand = precios, Cournot = cantidades"),
-    "nodal_var": ("§2.5.2 Eq. 2-22/2-23", "GARCH(1,1) horario + VaR/ES condicional + Kupiec POF"),
-    "nodal_cov": ("§2.5.3 Eq. 2-24", "cobertura de mínima varianza h* = ρ·σ_S/σ_F"),
-    "nodal_ems": ("§2.3 / objetivo e", "EMS de baterías y bombeo con water-filling bajo precio nodal"),
-    "nodal_ql": ("§2.7.2", "Q-learning por agente con el precio como estado y ascenso dual (Eq. 2-20)"),
-    "nodal_ap": ("§2.5.1 / §2.7.2", "mark-up aprendido por agente según la regla de liquidación (hipótesis central)"),
+NODAL_OBJETIVOS: dict[str, tuple[str, str]] = {
+    # clave de figura → (objetivo(s) de la investigación que cubre, de dónde sale cada número)
+    "nodal_red": ("objetivos a y b", "OPF con flujos óptimos DC y PTDF sobre la topología de 7 subregiones de XM (10-12 nodos al refinarla)"),
+    "nodal_cap": ("objetivos a y b", "CEN por subregión desde `CapEfecNeta`+`dim_plantas` de XM; eólica sembrada con el p99 de `Gen_EOLICA` cuando la ventana no reporta"),
+    "nodal_calib": ("objetivo a", "nivel de oferta y κ calibrados contra la mediana horaria de `PrecBolsNaci`, con verificación por diferencias finitas"),
+    "nodal_lmp": ("objetivo a", "λ_i = λ + Σ_k SF_ki·μ_k + λ·LF_i (pérdidas linealizadas por factor de participación)"),
+    "nodal_spread": ("objetivos a y b", "dispersión de LMP entre nodos y renta de congestión Σ(λ_i−λ_j)·F_ij"),
+    "nodal_cong": ("objetivo b", "uso de rama |SF·iny|/Fmax, violación, pérdidas iteradas y batería de refuerzos hipotéticos"),
+    "nodal_flujos": ("objetivo b", "flujos DC por rama y renta de congestión por ramo (μ_k·|F_k|)"),
+    "nodal_desp": ("objetivos a y b", "despacho óptimo por bloque con recorte renovable y piso de despacho"),
+    "nodal_nodo": ("objetivo a", "balance del nodo: demanda servida contra generación propia más variable, para los diez nodos a la vez"),
+    "nodal_beneficios": ("objetivos a, b y c", "síntesis de los marcadores del escenario activo: KPIs de liquidación, malla de desconexión, mark-up aprendido, valor del almacenamiento y sensibilidad a la penetración"),
+    "nodal_flex": ("objetivo a", "desconexión voluntaria: fracción interrumpible × precio gatillo dentro del OPF, con corte por nodo y hora"),
+    "nodal_reglas": ("objetivos a y b", "uninodal vs zonal vs híbrido (κ) vs nodal: desbalance de pagos, dispersión y renta"),
+    "nodal_descomp": ("objetivo a", "λ_i desglosada en componente de energía, pérdidas y congestión para la hora foco"),
+    "nodal_valida": ("objetivo a", "∂Costo/∂D_i por diferencias finitas contra el multiplicador dual del nodo"),
+    "nodal_esc": ("objetivos a y b", "log-normal solar y Weibull/Rayleigh eólica sobre el recurso real de la ventana, con correlaciones y reducción k-medias"),
+    "nodal_esto": ("objetivos a y b", "contraste de momentos reales contra simulados, bandas p5-p95, probabilidad de escasez y calidad de la reducción de escenarios"),
+    "nodal_penetra": ("objetivos a y b", "barrido de penetración solar/eólica reconstruyendo red, oferta y OPF en cada nivel"),
+    "nodal_ior": ("objetivo c", "IOR con `Precio_Bolsa_Dia` y `Costo_Marginal_COP_kWh_Dia` reales, HHI por nodo con `Codigo_Agente` y η con efectos fijos horarios"),
+    "nodal_mec": ("objetivo c", "demanda residual, índice de Lerner, Bertrand/Cournot y el markup aplicado a los bloques del nodo-agente"),
+    "nodal_var": ("objetivo c", "GARCH(1,1) horario propio, VaR/ES condicional y backtest de Kupiec sobre la serie real"),
+    "nodal_cov": ("objetivo c", "cobertura de varianza mínima con el ratio h* = ρ·σ_spot/σ_futuro"),
+    "nodal_ems": ("objetivo b", "EMS de baterías y bombeo con water-filling sobre el vector de precios nodales"),
+    "nodal_ql": ("objetivo c", "Q-learning multiagente con el precio como estado y el balance cerrado por ascenso dual"),
+    "nodal_ap": ("objetivos c", "mark-up que aprenden los agentes según la regla de liquidación, comparando uninodal y nodal"),
+    "nodal_refuerzos": ("objetivo b",
+                           "cada refuerzo candidato se liquida con el mismo OPF: congestión, λ y CO₂ antes y después"),
+    "nodal_combinaciones": ("objetivos a, b y c", "tres combinaciones de red, recurso y demanda interrumpible liquidadas bajo las cuatro reglas con el mismo OPF"),
 }
+
+
+# -------------- 10.11 · objetivos, regiones, refuerzo y combinaciones -------
+
+#: los tres objetivos que persigue el módulo, redactados en la propia app (sin citas externas)
+NODAL_OBJETIVOS_TEXTO = (
+    "**Objetivo a.** Comparar la liquidación **uninodal** (un solo precio para todo el SIN, como hoy) "
+    "contra una liquidación **nodal**: precios por nodo con congestión y pérdidas, modelamiento "
+    "estocástico de la generación solar, eólica y de la demanda, **incluyendo escenarios de "
+    "desconexión voluntaria de la demanda**.\n\n"
+    "**Objetivo b.** Simular **múltiples configuraciones del sistema y topologías de red** con "
+    "generación solar, eólica y **almacenamiento**, calculando los precios nodales mediante "
+    "**flujos óptimos de carga**, con un **modelo de simulación simplificado del despacho** y "
+    "**distintas reglas de formación de precios** (uninodal, zonal, híbrida y nodal).\n\n"
+    "**Objetivo c.** Analizar el comportamiento de los precios nodales (LMP) y de los **mecanismos de "
+    "cobertura** frente a la volatilidad con alta penetración de generación variable, con las reglas de "
+    "los escenarios y los **comportamientos estratégicos de los agentes ante la señal de precio "
+    "nodal**, incluidos los agentes que **aprenden a ofertar por refuerzo (Q-learning)**."
+)
+
+#: explicación del refuerzo que se muestra junto a la figura de Q-learning y en la cabecera
+NODAL_REFUERZO_TEXTO = (
+    "**Cómo se usa el aprendizaje por refuerzo aquí (objetivo c) y por qué.** El coordinador del "
+    "mercado no resuelve el juego: son **seis agentes** los que aprenden. Cada agente controla su "
+    "bloque despachable en la hora foco y decide cuánto ofertar.\n\n"
+    "1. **Estado**: el precio marginal de la hora `λ` discretizado en 21 cajas. El agente no ve el "
+    "estado del rival: esa es la gracia del enfoque, porque en el mercado real nadie conoce las curvas "
+    "de los demás.\n"
+    "2. **Acción**: mover su oferta un paso (subir, sostener o bajar ~117 MW por bloque).\n"
+    "3. **Recompensa**: su beneficio `λ·q − c(q)` con el **λ recalculado** por el mecanismo del "
+    "mercado. Aquí está la diferencia con un ejercicio de texto: el precio no es un dato, es la salida "
+    "del despacho conjunto de los seis agentes, cerrado con ascenso dual sobre el balance del sistema "
+    "(el mismo ascenso del OPF, con el signo invertido para que subir oferta baje el precio).\n"
+    "4. **Política**: Q-learning con `ε`-greedy y tasa de aprendizaje `α`, **ambos en decaimiento**; "
+    "la política final se evalúa con el `λ` promedio de la cola de episodios, no con el mejor episodio, "
+    "para reportar lo que el agente sostiene y no lo que le salió una vez.\n"
+    "5. **Criterio de cierre**: se declara `factible` si la suma ofertada cae en la banda del objetivo y "
+    "el precio convergió a la resolución de las cajas; si no, la figura lo dice.\n\n"
+    "Con esa máquina se responden las dos preguntas duras del objetivo c: **(i)** si un agente que "
+    "aprende por refuerzo reproduce el precio del OPF sin conocer los costos de los demás (y con qué "
+    "brecha de costo), y **(ii)** cuánto mark-up aprende bajo cada regla de liquidación, que es donde la "
+    "señal nodal cambia el incentivo: bajo uninodal el desvío se cobra en todo el sistema, bajo nodal "
+    "solo donde el agente es marginal."
+)
+
+#: las tres combinaciones del bloque de cierre (una fila por escenario en `combinaciones_nodales`)
+NODAL_COMBINACIONES = (
+    dict(clave="planos",
+         titulo="A · Red holgada (×1,10), demanda rígida, sin fase ENSO",
+         porque="Es el caso en que la señal nodal casi no existe: sin congestión, los cuatro esquemas "
+               "de liquidación dan el mismo número y la pregunta se responde sola (nada que "
+               "ganar). Sirve de control: si una política parece buena también aquí, no es la nodalidad "
+               "la que la genera.",
+         gran="media", estres=1.10, solar=0.0, eolica=0.0, flex=0.0, gatillo=1400.0, nino=False),
+    dict(clave="seco",
+         titulo="B · Red ajustada (×0,55) + fase El Niño + 25 % de demanda interrumpible",
+         porque="Escasez hídrica medida en la pestaña 🌊 El Niño con la red apretada: es donde el spread "
+               "nodal y la renta de congestión se abren y donde la desconexión voluntaria puede sustituir "
+               "refuerzo. Compara la liquidación uninodal contra la nodal con la misma red, el mismo "
+               "recurso y el mismo despacho, para que la diferencia sea solo la señal de precio.",
+         gran="media", estres=0.55, solar=0.0, eolica=0.0, flex=25.0, gatillo=1200.0, nino=True),
+    dict(clave="variable",
+         titulo="C · ×0,70 con solar y eólica duplicadas + 6 % de batería en el nodo de carga",
+         porque="La transición sobre una red que no se refuerza: más variable y más storage, con el "
+               "almacén sentado donde la señal locacional existe. Muestra que el valor del activo y la "
+               "dispersión de precios crecen juntos, y que el recorte se concentra al mediodía.",
+         gran="media", estres=0.70, solar=100.0, eolica=100.0, flex=15.0, gatillo=1200.0, nino=False),
+)
+
+
+def combinaciones_nodales(ctx: dict, cfg: dict, fase_el_nino: dict | None = None) -> pd.DataFrame:
+    """Tres combinaciones de red/recurso/demanda liquidadas con el mismo OPF, para ver el impacto.
+
+    Cada fila vuelve a construir la red y su oferta (calibración analítica, sin OPF de calibración,
+    para que el bloque cueste segundos y no minutos) y devuelve el precio medio bajo las cuatro
+    reglas, la dispersión nodal, la congestión, el CO₂ y lo que se corta con demanda interrumpible.
+    """
+    filas = []
+    for c in NODAL_COMBINACIONES:
+        try:
+            red = construye_red(ctx, granularidad=c["gran"], escalon_lineas=float(c["estres"]),
+                                solar_pct=float(c["solar"]), eolica_pct=float(c["eolica"]))
+            pf = perfiles_reales(ctx)
+            cal = calibra_oferta(red, pf, use_opf=False, por_hora=True)
+            dem, sol, eol = perfiles_nodales(red, pf)
+            nivel = np.asarray(cal["nivel_h"], dtype=float)
+            f = fase_el_nino or {}
+            if c.get("nino") and f.get("disponible"):
+                dem = dem * float(f["demanda"])
+                sol = sol * float(f["solar"])
+                eol = eol * float(f["eolica"])
+                nivel = nivel * float(f["nivel"])
+            res = opf_nodal(red, demanda=dem, solar=sol, eolica=eol, nivel_cop_kwh=nivel,
+                            kappa_hibrido=float(cfg.get("kappa") or 0.5),
+                            flex_frac=float(c["flex"]) / 100.0,
+                            flex_gatillo_cop=float(c["gatillo"]),
+                            perdas_iter=int(cfg.get("perdas_iter") or 3))
+            precios = res.get("precios") or {}
+            uni = float(np.mean(np.asarray(precios.get("uninodal", res["lam"]), dtype=float)))
+            nod = float(np.mean(np.asarray(res["p_dem"], dtype=float)))
+            filas.append(dict(
+                combinacion=c["titulo"], λ_uninodal=uni, λ_nodal= nod,
+                delta_pct=(100.0 * (nod / max(uni, 1e-9) - 1.0)),
+                spread_COP_kWh=float(np.mean(res["dispersion"])),
+                precio_min_nodo=float(np.min(res["p_dem"])), precio_max_nodo=float(np.max(res["p_dem"])),
+                horas_congestion=int(res["horas_congestion"]), viol_MW=float(res["max_violacion"]),
+                renta_MCP_h=float(np.mean(res["renta_congestion"]) / 1e6),
+                corte_GWh=float(np.sum(np.asarray(res["corte"], dtype=float)) / 1000.0),
+                recorte_GWh=float(np.sum(np.asarray(res["recorte_MWh"], dtype=float)) / 1000.0),
+                co2_t=float(np.sum(res["co2_t"])),
+                precios_distintos=int(len(set(np.round(np.mean(res["p_dem"], axis=0), 1)))),
+                conv=bool(res["converged"])))
+        except Exception as exc:                                   # noqa: BLE001
+            filas.append(dict(combinacion=c["titulo"], nota_error=f"{type(exc).__name__}: {str(exc)[:120]}"))
+    out = pd.DataFrame(filas)
+    if "nota_error" not in out.columns:
+        out["nota_error"] = ""
+    return out
+
+
+def _bloque_regiones_nodales(ctx: dict, mdl: dict) -> None:
+    """Regiones del SIN usadas por el módulo y el criterio con el que se agregaron."""
+    red = mdl["red"]
+    nd = red["nodos_df"]
+    ids = set(str(x) for x in nd["id"]) if "id" in nd.columns else set()
+    filas = []
+    for z, (nombre, _xy) in ZONAS_NODAL.items():
+        hijos = [e for e, p in ZONA_PADRE_NODAL.items() if p == z]
+        kws = tuple(KEYWORDS_ZONA.get(z, ()))
+        cap_z = 0.0
+        for nodo in [z] + hijos:
+            if nodo in ids:
+                cap_z += float(nd.loc[nd["id"] == nodo, "CEN_MW"].sum())
+        filas.append(dict(
+            nodo=z, region=nombre,
+            nodos_del_modelo=" + ".join([z] + [h for h in hijos if h in ids]),
+            peso_demanda=f"{100.0 * float(PESO_DEMANDA_NODAL.get(z, 0.0)):.1f} %",
+            CEN_MW=round(cap_z, 0),
+            criterio=", ".join(kws[:3]) + (f" … (+{len(kws) - 3} palabras clave)" if len(kws) > 3 else ""),
+        ))
+    st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True, height=260)
+    st.markdown(
+        "**El criterio, en tres reglas.** (1) **La unidad geográfica es la subregión que usa XM** "
+        "(`CAR` Caribe, `NOR` Nordeste, `OCC` Occidente-Pacífico, `CEN` Centro, `SUR` Sur, `GUJ` "
+        "Guajira-Cesar-Magdalena, `ORI` Orinoquía): no se inventó una zonificación, se adoptó la del "
+        "operador porque es la granularidad a la que XM publica CEN, demanda y mezcla. (2) **Cada "
+        "recurso se asigna por toponimia de su nombre** (`KEYWORDS_ZONA`: CHIVOR→CEN, GUAYEPO→GUJ, "
+        "ITUANGO→NOR, TERMOVALLE→OCC…) y lo no ubicable se reparte en proporción a la capacidad ya "
+        f"ubicada, declarando la brecha (cobertura toponímica actual: "
+        f"**{float(red['cobertura_toponimia']):.1f} %** de la CEN ubicada por nombre). (3) **La demanda "
+        "por nodo se reparte con `PESO_DEMANDA_NODAL`** (CEN 26 %, NOR 24 %, CAR 21 %, OCC 12 %, SUR 8 %, "
+        "GUJ y ORI 4,5 %), calibrado a la participación de cada subregión en el informe SIN de XM, "
+        "porque la API pública no entrega demanda por subregión.")
+    st.markdown(
+        f"**¿Por qué 10 nodos es la topología apropiada para este análisis?** Con las 7 subregiones "
+        f"(`subregion`) el precio zonal y el nodal **coinciden por construcción**: hay un solo nodo por "
+        f"zona, así que la liquidación zonal *es* la nodal y el objetivo b no se puede ni formular. Al "
+        f"bajar a 7 nodos tampoco hay congestión interna que repartir. La variante `media` —la usada "
+        f"por defecto— desdobla los tres nudos donde los datos de XM sí muestran un hueco entre "
+        f"generación y carga (`CEN→BOG`, `NOR→ANT`, `CAR→MAG`), quedando en "
+        f"**{len(red['nodos'])} nodos y {len(red['ramas'])} ramas**: es la topología más fina que sigue "
+        f"siendo **identificable con los datos públicos** (cada nodo conserva ≈ 1 GW de CEN y un peso "
+        f"de demanda tal que su λ se puede estimar y validar por diferencias finitas). `fina` añade "
+        f"refuerzos ANT-OCC y MAG-ORI: con ella la congestión desaparece, que es un resultado (muestra "
+        f"cuánto del spread es atribuible a la falta de refuerzo), pero ya no sirve para calibrar la "
+        f"oferta porque varios nodos quedan con un solo bloque despachable y el LMP se vuelve "
+        f"degenerado. Se queda entonces en 10 nodos: **el mínimo que produce congestión interna y el "
+        f"máximo que los datos de XM permiten sostener**.")
+
+
+def fig_nodal_combinaciones(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
+    """Cierre: tres combinaciones para ver el impacto de liquidar por nodo."""
+    cb = mdl.get("comb")
+    if not isinstance(cb, pd.DataFrame) or cb.empty:
+        return None
+    fig = _fig(ctx, 470)
+    nomes = [str(t)[:38] for t in cb["combinacion"]]
+    fig.add_trace(go.Bar(x=nomes, y=np.asarray(cb["λ_uninodal"], dtype=float),
+                         name="Precio medio · uninodal (el de hoy)", marker_color=GRIS))
+    fig.add_trace(go.Bar(x=nomes, y=np.asarray(cb["λ_nodal"], dtype=float),
+                         name="Precio medio · nodal (LMP ponderado)", marker_color=AZUL))
+    fig.add_trace(go.Scatter(x=nomes, y=np.asarray(cb["spread_COP_kWh"], dtype=float),
+                             name="Dispersión nodal (COP/kWh)", mode="lines+markers",
+                             line=dict(color=ROJO, width=2.2, dash="dot"), yaxis="y2"))
+    fig.add_trace(go.Scatter(x=nomes, y=np.asarray(cb["horas_congestion"], dtype=float),
+                             name="Horas congestionadas (de 24)", mode="lines+markers",
+                             line=dict(color=AMBAR, width=2.0, dash="dashdot"), yaxis="y2"))
+    fig.update_layout(xaxis_title="Combinación (red · recurso · demanda)",
+                      yaxis_title="COP/kWh",
+                      yaxis2=dict(title="COP/kWh de dispersión · horas", overlaying="y", side="right",
+                                  showgrid=False),
+                      barmode="group", hovermode="x unified",
+                      legend=dict(orientation="h", y=1.16, x=0))
+    st.dataframe(cb[["combinacion", "λ_uninodal", "λ_nodal", "delta_pct", "spread_COP_kWh",
+                     "precio_min_nodo", "precio_max_nodo", "horas_congestion", "viol_MW", "renta_MCP_h",
+                     "corte_GWh", "recorte_GWh", "co2_t", "precios_distintos", "conv"]]
+                 .round(2), use_container_width=True, hide_index=True, height=180)
+    err = [e for e in cb.get("nota_error", pd.Series(dtype=str)).tolist() if str(e)]
+    st.markdown("**Cómo leer cada combinación:**\n"
+                + "\n".join(f"- *{c['titulo']}* — {c['porque']}" for c in NODAL_COMBINACIONES))
+    return {"fig": fig, "leyenda": _leyenda(
+        "Tres combinaciones y qué cambia con la señal nodal",
+        "Cada barra es el precio medio del sistema bajo la liquidación **uninodal** (la de hoy) y bajo "
+        "la **nodal** (ponderación de los LMP por la demanda servida), para la misma red, el mismo "
+        "recurso y el mismo despacho. Las líneas de la derecha miden lo que la media esconde: "
+        "dispersión entre nodos y horas congestionadas. La tabla agrega el nodo más barato y el más caro, "
+        "la renta de congestión, el CO₂ y lo que se corta con la demanda interrumpible.",
+        "La comparación útil no es el precio medio —que cambia poco— sino **cuánto se separan los nodos** "
+        "y **cuántos precios distintos** aparecen: en A (red holgada) la nodalidad no agrega información "
+        "y por eso el uninodal y el nodal son casi el mismo número; en B (escasez con red ajustada) el "
+        "spread y la renta se abren y ahí es donde la señal cambia decisiones; en C (transición variable "
+        "con red sin reforzar) el recorte y la dispersión suben juntos, que es el caso donde el "
+        "almacenamiento y la demanda flexible empiezan a pagarse.",
+        "La combinación B lleva la fase El Niño **medida** en la pestaña 🌊 El Niño (precio ponderado "
+        "+61 % contra neutral, aportes −27 %, embalses −6 %), así que el salto entre A y B no es un "
+        "artificio de parámetros: es lo que le pasa a la señal cuando el sistema se seca.",
+        "combinaciones_nodales() con la misma red, la misma calibración analítica y el mismo OPF del "
+        "módulo; las tres combinaciones están declaradas arriba con su justificación"
+        + (" · errores: " + " | ".join(str(e)[:90] for e in err[:2]) if err else ""))}
+
+
 
 
 # ------------------------------ modelo compartido ----------------------------
@@ -9257,13 +9528,124 @@ _NODAL_DEFECTOS: dict[str, Any] = dict(granularidad="media", estres=0.70, regla=
                     bateria_pct=6.0, dur_bateria=4.0, eta_bateria=0.88, bombeo_pct=0.0,
                     dur_bombeo=12.0, eta_bombeo=0.80, ems_modo="arbitraje", ems_pasadas=5,
                     almacenar=False, barrido_flex=True, fase="ventana", nodo_estr="auto",
+                    sintesis=True, two_stage=True, emparejar_cv=True, refuerzos=True,
                     markup_pct=0.0, wh_pct=0.0, wh_modo="energia", epsilon=-0.45, opf_calib=True,
                     valida_lmp=True, horas_valida=12, riesgo=True, alfa=0.05, mercado=True,
-                    sensibilidad=False, n_esc_sens=8, aprendizaje=True, episodios_rl=6000,
+                    sensibilidad=True, n_esc_sens=8, aprendizaje=True, episodios_rl=6000,
                     episodios_ap=16, n_agentes=6, escenarios=True, perdas_iter=3, curvatura=0.45,
                     solar_pct=0.0, eolica_pct=0.0, alm_nodos=["CEN", "BOG"], ap_horas=[19, 20],
                     sens_niveles=[(0.0, 0.0), (25.0, 10.0), (60.0, 25.0), (100.0, 40.0),
                                   (150.0, 60.0)])
+
+
+def emparejar_cv(esc: dict[str, Any], pf: dict[str, np.ndarray], *, tope: float = 4.0) -> tuple[dict, pd.DataFrame]:
+    """Escala cada día típico alrededor de su propia media para que su CV intradía iguale al observado.
+
+    El generador reproduce bien las *familias* (log-normal, Weibull, gamma) y sus correlaciones, pero el
+    promedio nacional que publica XM es mucho más liso que una trayectoria de recurso: al pasar de
+    velocidad de viento a potencia despachada la cola de la Weibull se achica y el CV intradía real de la
+    eólica resulta ~5 veces menor que el de la serie simulada. Un abanico con variancias equivocadas da
+    bandas de precio equivocadas, así que los días típicos se corrigen con
+
+        x' = μ + α · (x − μ),     α = CV_real / CV_simulado  (un solo α por serie)
+
+    La media, la forma horaria y todas las correlaciones (entre nodos y entre series) quedan intactas:
+    se cambia únicamente la dispersión. `tope` limita α a [1/tope, tope] para no explotar con series
+    casi planas. El ajuste actúa sobre los días típicos ya reducidos, no sobre el generador: el test KS
+    de la pestaña de calibración sigue midiendo las trayectorias crudas.
+    """
+    pares = (("demanda_MW", "demanda"), ("solar_MW", "solar"), ("eolica_MW", "eolica"))
+    out = dict(esc)
+    filas = []
+    for clave, pk in pares:
+        if clave not in out or pk not in pf:
+            continue
+        X = np.asarray(out[clave], dtype=float)                  # (k, n, H)
+        R = np.asarray(pf[pk], dtype=float).ravel()              # (H,) sistema, promedio de la ventana
+        if X.ndim != 3 or R.size < 3:
+            continue
+        H = min(X.shape[2], R.size)
+        sis = X[:, :, :H].sum(axis=1)                             # (k, H) sistema por escenario
+        cv_s = float(np.mean(sis.std(axis=1) / np.maximum(np.abs(sis.mean(axis=1)), 1e-9)))
+        cv_r = float(R[:H].std() / max(abs(R[:H].mean()), 1e-9))
+        if not (np.isfinite(cv_s) and np.isfinite(cv_r)) or cv_s <= 1e-9:
+            continue
+        alfa = float(np.clip(cv_r / cv_s, 1.0 / tope, tope))
+        mu = X[:, :, :H].mean(axis=2, keepdims=True)
+        Y = X.copy()
+        Y[:, :, :H] = mu + alfa * (X[:, :, :H] - mu)
+        if X.shape[2] > H:                                        # colas no cubiertas, se escalan igual
+            Y[:, :, H:] = X[:, :, H:]
+        out[clave] = Y
+        cv_ahora = float(np.mean(Y[:, :, :H].sum(axis=1).std(axis=1)
+                                 / np.maximum(np.abs(Y[:, :, :H].sum(axis=1).mean(axis=1)), 1e-9)))
+        filas.append(dict(serie={"demanda_MW": "demanda", "solar_MW": "solar",
+                                 "eolica_MW": "eólica"}[clave],
+                          cv_real=cv_r, cv_antes=cv_s, cv_ahora=cv_ahora, alfa=alfa))
+    if "demanda_MW" in out:
+        out["demanda_total_MW"] = np.asarray(out["demanda_MW"], dtype=float).sum(axis=2)
+    out["cv_alfas"] = {str(f["serie"]): float(f["alfa"]) for f in filas}
+    return out, pd.DataFrame(filas)
+
+
+def momentos_real_vs_sim(red: dict, pf: dict[str, np.ndarray], esc: dict[str, Any]) -> pd.DataFrame:
+    """Media, desviación, CV, sesgo, curtosis, ρ1 y p99 de la serie real contra la del generador."""
+    def _mom(x: np.ndarray) -> dict[str, float]:
+        x = np.asarray(x, dtype=float).ravel()
+        x = x[np.isfinite(x)]
+        if x.size < 3:
+            return dict(media=float("nan"), sd=float("nan"), cv=float("nan"), sesgo=float("nan"),
+                        curtosis=float("nan"), rho1=float("nan"), p99=float("nan"))
+        z = (x - x.mean()) / max(x.std(), 1e-12)
+        a = np.asarray(x[:-1]); b = np.asarray(x[1:])
+        rr = float(np.corrcoef(a, b)[0, 1]) if a.size > 2 and np.std(a) > 0 and np.std(b) > 0 else float("nan")
+        return dict(media=float(x.mean()), sd=float(x.std()), cv=float(x.std() / max(abs(x.mean()), 1e-9)),
+                    sesgo=float(np.mean(z ** 3)), curtosis=float(np.mean(z ** 4) - 3.0),
+                    rho1=rr, p99=float(np.percentile(x, 99.0)))
+
+    filas = []
+    dem_r = np.asarray(pf.get("demanda"), dtype=float)
+    sol_r = np.asarray(pf.get("solar"), dtype=float)
+    eol_r = np.asarray(pf.get("eolica"), dtype=float)
+    def _sis(a_: np.ndarray) -> np.ndarray:
+        """Perfil horario del sistema: (S,n,H) del generador -> media de sumas; (H,n) real -> suma."""
+        a_ = np.asarray(a_, dtype=float)
+        if a_.ndim == 3:
+            return a_.sum(axis=1).mean(axis=0)
+        if a_.ndim == 2:
+            return a_.sum(axis=1)
+        return a_.ravel()
+
+    def _mom3(a_: np.ndarray) -> dict[str, float]:
+        """Momentos de UN día típico: se promedian por trayectoria, no sobre la media del ensemble
+        (si no, la dispersión del abanico queda subestimada por construcción)."""
+        a_ = np.asarray(a_, dtype=float)
+        if a_.ndim == 3:
+            sis = a_.sum(axis=1)
+            claves = ("media", "sd", "cv", "sesgo", "curtosis", "rho1", "p99")
+            acum: dict[str, list[float]] = {c: [] for c in claves}
+            for i in range(sis.shape[0]):
+                m = _mom(sis[i])
+                for c in claves:
+                    if np.isfinite(m[c]):
+                        acum[c].append(m[c])
+            return {c: (float(np.mean(v)) if v else float("nan")) for c, v in acum.items()}
+        return _mom(a_)
+
+    dem = np.asarray(esc.get("demanda_MW"), dtype=float)
+    sol = np.asarray(esc.get("solar_MW"), dtype=float)
+    eol = np.asarray(esc.get("eolica_MW"), dtype=float)
+    pares = (("demanda (MW del sistema)", _sis(dem_r), _sis(dem)),
+             ("solar (MW del sistema)", _sis(sol_r), _sis(sol)),
+             ("eólica (MW del sistema)", _sis(eol_r), _sis(eol)))
+    for nom, a, b in pares:
+        ma, mb = _mom(a), _mom3(b)
+        filas.append(dict(serie=nom, **{f"real_{kk}": vv for kk, vv in ma.items()},
+                          **{f"sim_{kk}": vv for kk, vv in mb.items()},
+                          Δ_media_pct=(100.0 * (mb["media"] - ma["media"]) / abs(ma["media"])
+                                       if abs(ma["media"]) > 1e-9 else float("nan"))))
+    return pd.DataFrame(filas)
+
 
 
 # --------------------- 10.10 · escenarios justificados y fase ENSO ----------
@@ -9271,7 +9653,7 @@ _NODAL_DEFECTOS: dict[str, Any] = dict(granularidad="media", estres=0.70, regla=
 def _fase_enso(ctx: dict, cfg: dict) -> dict[str, Any]:
     """Multiplicadores de escenario tomados de la pestaña 🌊 El Niño (`ctx["impacto"]`).
 
-    La propuesta pide comparar regímenes; en vez de inventar un "escenario El Niño",
+    Conviene comparar regímenes; en vez de inventar un "escenario El Niño",
     se usan los Δ% que ya calcula el tablero sobre 46 meses de serie (aportes,
     embalses y precio ponderado por fase). Con `impacto` vacío se devuelve el caso
     neutro y la figura lo dice.
@@ -9319,7 +9701,7 @@ def _pct(a: float, b: float) -> str:
     return f"{100.0 * (a / b - 1.0):+.1f} %"
 
 
-# nombre del preset → (qué fija, justificación del escenario, objetivo de la tesis)
+# nombre del preset → (qué fija, justificación del escenario, objetivo que cubre)
 NODAL_PRESETS: dict[str, dict[str, Any]] = {
     "personalizado": dict(
         cfg={},
@@ -9390,7 +9772,7 @@ NODAL_PRESETS: dict[str, dict[str, Any]] = {
                 "retiro de 25 % de la capacidad *energética*. El 20 % no es un número de libro: "
                 "es el orden del recargo con el que la SSPD abrió investigaciones por poder de "
                 "mercado (expedientes EPM 14/15-mar-2022 y Emgesa 11/14/15-mar-2022 citados en "
-                "la propuesta, donde la oferta declarada superó el costo de oportunidad en esas "
+                "el mercado colombiano, donde la oferta declarada superó el costo de oportunidad en esas "
                 "magnitudes). El retiro se pone en modalidad `energia` porque en modo "
                 "`capacidad` no muerde si el bloque no está en su techo — y eso también se "
                 "muestra en la pestaña."),
@@ -9428,7 +9810,7 @@ NODAL_PRESETS: dict[str, dict[str, Any]] = {
         cfg=dict(granularidad="media", estres=0.70, flex=15.0, kappa=0.35, markup_pct=0.0,
                  wh_pct=0.0, bateria_pct=3.0, bombeo_pct=0.0, fase="ventana",
                  ems_modo="arbitraje", regla="hibrido"),
-        porque=("La transición que discute la propuesta en vez del salto al LMP pleno: liquidación "
+        porque=("Transición gradual en vez del salto al LMP pleno: liquidación "
                 "híbrida con κ = 0,35 (35 % de la señal locacional en la factura), batería pequeña "
                 "en el nodo de carga y red moderadamente ajustada. κ = 0,35 no es arbitrario: es "
                 "el punto donde la dispersión recuperada por el mercado cubre alrededor de un "
@@ -9482,7 +9864,7 @@ def barrido_flexibilidad(red: dict, perfiles: dict[str, np.ndarray], nivel_cop_k
                 horas_congestion=int(r["horas_congestion"]),
                 viol_MW=float(r["max_violacion"]),
                 rc_MCP_h=float(np.mean(r["renta_congestion"]) / 1e6),
-                costo_MCP_h=float(np.mean(r["costo"]) * 1000.0 / 1e6),
+                costo_MCop_h=float(np.mean(r["costo"]) / 1e6),   # `costo` ya viene en COP/h
                 co2_t=float(np.sum(r["co2_t"])), conv=bool(r["converged"])))
     return pd.DataFrame(filas)
 
@@ -9556,6 +9938,14 @@ def _modelo_nodal(ctx: dict, cfg: dict) -> dict[str, Any]:
                perfiles_nodales=(dem, sol, eol), res=res, res_base=res_base,
                cfg=dict(cfg), t_seg=time.time() - t0, almacenamiento=alm,
                vr=dict(disponible=False))
+    if cfg.get("refuerzos", True):
+        try:
+            mdl["ref"] = evalua_refuerzos(cfg, mdl)
+        except Exception as exc:                                   # noqa: BLE001
+            mdl["ref"] = pd.DataFrame()
+            mdl["ref_nota"] = f"{type(exc).__name__}: {str(exc)[:150]}"
+    else:
+        mdl["ref"] = pd.DataFrame()
     if cfg["valida_lmp"]:
         try:
             mdl["vr"] = valida_lmp(red, res, max_horas=min(24, cfg["horas_valida"]))
@@ -9570,8 +9960,31 @@ def _modelo_nodal(ctx: dict, cfg: dict) -> dict[str, Any]:
                                                    solar=float(fase["solar"]),
                                                    eolica=float(fase["eolica"]))
                                               if fase.get("disponible") else None))
-            mdl["esc"] = reduce_escenarios(esc, k=int(cfg["n_tipicos"]), semilla=int(cfg["semilla"]))
+            _red_esc = reduce_escenarios(esc, k=int(cfg["n_tipicos"]), semilla=int(cfg["semilla"]))
+            mdl["esc_cv"] = pd.DataFrame()
+            if cfg.get("emparejar_cv", True):
+                try:
+                    _red_esc, _aj = emparejar_cv(_red_esc, pf, tope=12.0)
+                    mdl["esc_cv"] = _aj
+                except Exception:                                  # noqa: BLE001
+                    pass
+            mdl["esc"] = _red_esc
             mdl["esc_n"] = esc["S"]
+            try:
+                mdl["esc_mom"] = momentos_real_vs_sim(red, pf, _red_esc)
+            except Exception:                                      # noqa: BLE001
+                mdl["esc_mom"] = pd.DataFrame()
+            if cfg.get("two_stage", True) and isinstance(_red_esc, dict):
+                try:
+                    mdl["est"] = despacho_estocastico(
+                        red, res, _red_esc, nivel_modelo, kappa=float(cfg["kappa"]),
+                        perdas_iter=int(cfg["perdas_iter"]), flex_frac=float(cfg["flex"]) / 100.0,
+                        gatillo_cop=float(cfg.get("gatillo") or 0.0), alm=alm)
+                except Exception as exc:                           # noqa: BLE001
+                    mdl["est"] = None
+                    mdl["est_nota"] = f"{type(exc).__name__}: {str(exc)[:150]}"
+            else:
+                mdl["est"] = None
         except Exception as exc:                                   # noqa: BLE001
             mdl["esc"] = None
             mdl["esc_nota"] = f"{type(exc).__name__}: {str(exc)[:140]}"
@@ -9654,6 +10067,15 @@ def _modelo_nodal(ctx: dict, cfg: dict) -> dict[str, Any]:
             mdl["flex_nota"] = f"{type(exc).__name__}: {str(exc)[:140]}"
     else:
         mdl["flex"] = pd.DataFrame()
+    if cfg.get("sintesis", True):
+        try:
+            _fx = _fase_enso(ctx, dict(cfg, fase="El Niño"))
+            mdl["comb"] = combinaciones_nodales(ctx, cfg, _fx)
+        except Exception as exc:                                   # noqa: BLE001
+            mdl["comb"] = pd.DataFrame()
+            mdl["comb_nota"] = f"{type(exc).__name__}: {str(exc)[:120]}"
+    else:
+        mdl["comb"] = pd.DataFrame()
     if cfg["sensibilidad"]:
         try:
             mdl["sens"] = sensibilidad_penetracion(
@@ -9708,7 +10130,7 @@ def _nodal_widgets(ctx: dict) -> dict[str, Any]:
             "Escenario predefinido (justificado)", [pr_etiq[k] for k in pr_claves], index=0,
             key="nd_preset",
             help="Cada preset fija un subconjunto de controles con un valor razonado, y la columna "
-                 "derecha dice por qué y qué objetivo de la tesis cubre. Los controles que el preset "
+                 "derecha dice por qué y qué objetivo cubre. Los controles que el preset "
                  "no toca quedan a su criterio.")
     preset = next((k for k in pr_claves if pr_etiq[k] == _lbl), "personalizado")
     _pr = NODAL_PRESETS[preset]
@@ -9724,7 +10146,7 @@ def _nodal_widgets(ctx: dict) -> dict[str, Any]:
             help="`subregion` = las 7 subregiones que publica XM (un nodo por zona: aquí el precio "
                  "zonal y el nodal coinciden por construcción). `media` desdobla CEN→BOG, NOR→ANT y "
                  "CAR→MAG, que es donde aparece la congestión interna; `fina` añade ANT-OCC y MAG-ORI "
-                 "para ver cómo los refuerzos la borran. (§2.6.2)")
+                 "para ver cómo los refuerzos la borran.")
         estres = st.slider(
             "Capacidad de las líneas (× del caso base)", 0.30, 1.30, 0.70, 0.05, key="nd_estres",
             help="Escala la reactancia equivalente: 1,00 = la malla nominal declarada; bajarla "
@@ -9735,7 +10157,7 @@ def _nodal_widgets(ctx: dict) -> dict[str, Any]:
             "Regla de liquidación mostrada", ["nodal", "hibrido", "zonal", "uninodal"], index=0, key="nd_regla",
             help="Uninodal = un solo precio para todo el SIN (como hoy). Zonal = un precio por "
                  "subregión. Híbrido = el precio de bolsa + κ·(componente nodal), la transición que "
-                 "discute la propuesta. Nodal = LMP pleno (Eq. 2-15).")
+                 "discute la literatura de mercados. Nodal = LMP pleno.")
         kappa = st.slider("κ del régimen híbrido", 0.0, 1.0, 0.5, 0.05, key="nd_kappa",
                           help="Peso de la componente nodal en la liquidación híbrida. κ=0 ⇒ uninodal, "
                                "κ=1 ⇒ nodal. Es el knob con el que se lee el compromiso eficiencia / "
@@ -9743,7 +10165,7 @@ def _nodal_widgets(ctx: dict) -> dict[str, Any]:
     with c3:
         hora = st.number_input("Hora foco (1-24)", 1, 24, 20, 1, key="nd_hora",
                                help="Hora del día para los cortes de barra, la descomposición de "
-                                    "precios (Eq. 2-21) y el subproblema de refuerzo.")
+                                    "precios y el subproblema de refuerzo.")
         flex = st.slider("Flexibilidad (recorte) máx. %", 0, 40, 15, 1, key="nd_flex",
                          help="Fracción de la demanda que puede cortarse (interrumpible/piso de "
                               "despacho) cuando el precio supera el gatillo. 0 % = demanda rígida, "
@@ -9762,16 +10184,23 @@ def _nodal_widgets(ctx: dict) -> dict[str, Any]:
         d1, d2, d3, d4 = st.columns(4)
         with d1:
             n_esc = st.slider("Escenarios Monte Carlo", 24, 240, 80, 8, key="nd_nesc",
-                              help="Trayectorias horarias de recurso y demanda (§2.2.1/§2.2.2). Se "
+                              help="Trayectorias horarias de recurso y demanda. Se "
                                    "reducen a los típicos por k-medias antes de usarlas.")
             n_tip = st.slider("Escenarios típicos (k-medias)", 4, 20, 8, 1, key="nd_ntip",
                               help="Reducción clásica de la programación estocástica: conservan la "
                                    "media y aproximano la varianza a una fracción del costo.")
+            twostage = st.toggle("Despachar cada escenario típico con su propio OPF (2ª etapa)",
+                                 value=True, key="nd_2st",
+                                 help="Apagado, los escenarios solo describen recurso y demanda "
+                                      "(rápido, y el precio se lee del día medio). Encendido, cada día "
+                                      "típico pasa por el mismo OPF con pérdidas y congestión: salen "
+                                      "bandas p05-p95 del precio, probabilidad de escasez por hora, "
+                                      "distribución del LMP por nodo y el VSS. Cuesta ~0,3 s por escenario.")
             fam_sol = st.selectbox("Familia solar", ["lognormal", "gamma", "weibull", "uniforme"], key="nd_famsol",
-                                   help="§2.2.1 usa log-normal con τ_b = a(1−e^(−ε·cosθz)) + a·e^(−k/cosθz) "
+                                   help="Log-normal con τ_b = a(1−e^(−ε·cosθz)) + a·e^(−k/cosθz) "
                                         "(Perez 2023); aquí se deja elegir la familia para el KS.")
             fam_eol = st.selectbox("Familia eólica", ["weibull", "rayleigh", "uniforme", "lognormal"], key="nd_fameol",
-                                   help="§2.2.2: f(x)=aβx^(β−1)e^(−ax^β); Rayleigh es el caso β=2 y la "
+                                   help="Weibull f(x)=aβx^(β−1)e^(−ax^β); Rayleigh es el caso β=2 y la "
                                         "mezcla uniforme es la alternativa de Acero (2024).")
             rho = st.slider("ρ entre nodos (recurso)", 0.0, 0.98, 0.6, 0.02, key="nd_rho",
                             help="Correlación del factor de capacidad entre subregiones: 1 = un solo "
@@ -9796,14 +10225,14 @@ def _nodal_widgets(ctx: dict) -> dict[str, Any]:
                                     help="`arbitraje` maximiza Σ(p_descarga−p_carga/η)·E; "
                                          "`anti-recorte` carga sólo con excedente renovable; "
                                          "`alivio_congestion` usa las máscaras de nodo para descargar "
-                                         "donde la rama está apretada. Es el EMS de §2.3.")
+                                         "donde la rama está apretada.")
             ems_pas = st.slider("Pasadas del EMS", 1, 10, 5, 1, key="nd_emsp",
                                 help="El EMS y el OPF se resuelven en bloque: se iteran hasta que el "
                                      "cambio de despacho estableza (< 1 MW). Más pasadas = más cerca "
                                      "del óptimo conjunto, más lento.")
         with d4:
             markup = st.slider("Markup sobre la oferta (%)", 0, 40, 0, 1, key="nd_mk",
-                               help="§2.5.1: los agentes con poder suben la oferta por encima del costo "
+                               help=": los agentes con poder suben la oferta por encima del costo "
                                     "marginal. Como el modelo es de precio, un markup en un nodo "
                                     "congestonado no se propaga igual que bajo liquidación uninodal: "
                                     "esa es la prueba del objetivo c.")
@@ -9833,27 +10262,32 @@ def _nodal_widgets(ctx: dict) -> dict[str, Any]:
                                        "con el OPF DC. Si se apaga, la calibración es analítica "
                                        "(más rápida, error algo mayor).")
             valida = st.toggle("Validar el LMP por diferencias finitas", value=True, key="nd_val",
-                              help="Eq. 2-15 dice que λ_i = ∂Costo/∂D_i; se comprueba perturbando la "
+                              help=" dice que λ_i = ∂Costo/∂D_i; se comprueba perturbando la "
                                    "demanda del nodo ±2 MW y recalcando el OPF. Es la prueba dura de que "
                                    "el modelo hace lo que dice.")
             horas_valida = st.slider("Horas a validar", 4, 24, 12, 2, key="nd_valh",
                                      help="Cada hora cuesta 2 OPF completos.")
+            _ref_tog = st.toggle("Evaluar el conjunto de refuerzos hipotéticos", value=True,
+                                 key="nd_ref",
+                                 help="Corre un OPF por candidato (seis tramos + la canasta completa, "
+                                      "≈2 s). Aporta el Δ de congestión, λ, corte y CO₂ de cada obra "
+                                      "sobre el mismo día tipo.")
         with e2:
             riesgo = st.toggle("GARCH + VaR + cobertura", value=True, key="nd_ries",
-                               help="§2.5.2/§2.5.3 sobre la serie horaria real de la ventana (648 h) "
+                               help=" sobre la serie horaria real de la ventana (648 h) "
                                     "y la del modelo. Es rápido (~0,5 s).")
             alfa = st.select_slider("α del VaR", [0.01, 0.025, 0.05, 0.10], value=0.05, key="nd_alfa",
                                     help="Nivel de confianza del VaR condicional y del backtest de Kupiec.")
             mercado = st.toggle("Poder de mercado (IOR, HHI, Cournot)", value=True, key="nd_merc",
-                                help="§2.5.1 con los datos reales de concentración por agente y el "
+                                help=" con los datos reales de concentración por agente y el "
                                      "markup sobre la curva de oferta.")
-            sens = st.toggle("Barrido de penetración renovable", value=False, key="nd_sens",
+            sens = st.toggle("Barrido de penetración renovable", value=True, key="nd_sens",
                              help="Recalcula red + OPF por cada nivel de penetración: es la figura más "
                                   "cara del módulo (≈6 OPF con escenarios).")
             n_esc_sens = st.slider("Escenarios por nivel del barrido", 4, 40, 8, 2, key="nd_sensesc")
         with e3:
             aprend = st.toggle("Aprendizaje (Q-learning + reglas)", value=True, key="nd_ap",
-                               help="§2.7.2. El refuerzo por regla corre un OPF por episodio, así que "
+                               help=". El refuerzo por regla corre un OPF por episodio, así que "
                                     "se limita a 24 h y pocas épocas.")
             eps_rl = st.slider("Episodios de Q-learning", 500, 20000, 6000, 500, key="nd_epsrl",
                                help="El precio convergen a una banda cuya anchura fija la resolución "
@@ -9898,13 +10332,14 @@ def _nodal_widgets(ctx: dict) -> dict[str, Any]:
                granularidad=str(gran),
                estres=float(estres), regla=str(regla), kappa=float(kappa),
                hora_foco=int(hora), flex=float(flex), gatillo=float(gatillo), semilla=int(semilla),
-               n_esc=int(n_esc), n_tipicos=int(n_tip), fam_sol=str(fam_sol), fam_eol=str(fam_eol),
+               n_esc=int(n_esc), n_tipicos=int(n_tip), two_stage=bool(twostage),
+               fam_sol=str(fam_sol), fam_eol=str(fam_eol),
                rho_recurso=float(rho), rho_cruce=float(rhoc), bateria_pct=float(bateria),
                dur_bateria=float(dur_bat), eta_bateria=float(eta_bat), bombeo_pct=float(bombeo),
                dur_bombeo=float(dur_bom), eta_bombeo=float(eta_bom), ems_modo=str(ems_modo),
                ems_pasadas=int(ems_pas), markup_pct=float(markup), wh_pct=float(wh_pct),
                wh_modo=str(wh_modo), epsilon=float(epsilon), opf_calib=bool(opf_calib),
-               valida_lmp=bool(valida), horas_valida=int(horas_valida), riesgo=bool(riesgo),
+               refuerzos=bool(_ref_tog), valida_lmp=bool(valida), horas_valida=int(horas_valida), riesgo=bool(riesgo),
                alfa=float(alfa), mercado=bool(mercado), sensibilidad=bool(sens),
                n_esc_sens=int(n_esc_sens), aprendizaje=bool(aprend), episodios_rl=int(eps_rl),
                episodios_ap=int(eps_ap), n_agentes=int(n_ag), escenas=None,
@@ -9949,61 +10384,118 @@ def _mdl(ctx: dict, cfg: dict) -> dict[str, Any]:
 # ================================== figuras ==================================
 
 def fig_nodal_red(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
-    """Diagrama unilineal: nodos (tamaño = demanda), ramas (grosor = uso, rojo = violada)."""
+    """Diagrama unilineal legible: ramas por color de uso, nodos separados y % con fondo."""
     red, res = mdl["red"], mdl["res"]
     nd, ram = red["nodos_df"], red["ramas"]
     if nd.empty or ram.empty:
         return None
-    fig = _fig(ctx, 520)
+    fig = _fig(ctx, 560)
     uso = np.asarray(res["uso_rama"], dtype=float)
     uso_med = np.nanmean(uso, axis=0) if uso.ndim > 1 else np.zeros(len(ram))
     uso_max = np.nanmax(uso, axis=0) if uso.ndim > 1 else uso_med
-    for i, r in ram.reset_index(drop=True).iterrows():
-        a = nd.loc[nd["id"] == r["de"], ["x", "y"]].to_numpy(dtype=float)
-        b = nd.loc[nd["id"] == r["a"], ["x", "y"]].to_numpy(dtype=float)
-        if len(a) == 0 or len(b) == 0:
+
+    # --- posición: se normaliza y se separan los nodos que se tocan (es un esquema, no un mapa) ---
+    xs = nd["x"].to_numpy(dtype=float)
+    ys = nd["y"].to_numpy(dtype=float)
+    def _norm(v: np.ndarray) -> np.ndarray:
+        lo, hi = float(np.nanmin(v)), float(np.nanmax(v))
+        return (v - lo) / max(hi - lo, 1e-9) if hi > lo else np.full_like(v, 0.5)
+    pos = np.column_stack([0.10 + 0.80 * _norm(xs), 0.12 + 0.76 * _norm(ys)])
+    rad = 300.0 * np.sqrt(np.clip(nd["CEN_MW"].to_numpy(dtype=float), 0.0, None)
+                          / max(float(np.nanmax(nd["CEN_MW"].to_numpy(dtype=float))), 1.0))
+    rad = np.clip(rad, 22.0, 54.0)
+    sep = 0.145 + 0.0016 * rad                              # radio en unidades de dato (fig ~700 px)
+    for _ in range(90):                                     # repulsión: dos pasadas de relaxation
+        for a_ in range(len(pos)):
+            for b_ in range(a_ + 1, len(pos)):
+                d = pos[b_] - pos[a_]
+                dd = float(np.hypot(d[0], d[1]))
+                if dd < 1e-6:
+                    pos[b_] += np.array([0.01, 0.01])
+                    continue
+                need = sep[a_] + sep[b_]
+                if dd < need:
+                    paso = 0.5 * (need - dd) / dd
+                    pos[a_] -= paso * d
+                    pos[b_] += paso * d
+    pos[:, 0] = np.clip(pos[:, 0], 0.05, 0.95)
+    pos[:, 1] = np.clip(pos[:, 1], 0.06, 0.94)
+    coord = {str(nid): (float(pos[k][0]), float(pos[k][1])) for k, nid in enumerate(nd["id"].astype(str))}
+
+    # --- ramas: un color por franja de uso, con leyenda; el % va sobre una etiqueta con fondo ---
+    franjas = (("uso medio < 50 %", 0.00, 0.50, "#90a4ae"),
+               ("uso medio 50-80 %", 0.50, 0.80, AZUL),
+               ("uso medio 80-98 % (cerca del límite)", 0.80, 0.98, AMBAR),
+               ("uso > 98 % (violada en alguna hora)", 0.98, 9.0, ROJO))
+    for nom_f, lo, hi, col in franjas:
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode="lines", name=nom_f,
+                                 line=dict(color=col, width=3.4), hoverinfo="skip"))
+    for i_r, r in ram.reset_index(drop=True).iterrows():
+        ka = coord.get(str(r["de"]))
+        kb = coord.get(str(r["a"]))
+        if ka is None or kb is None:
             continue
-        u = float(np.clip(uso_med[i] if i < len(uso_med) else 0.0, 0.0, 2.0))
-        col = ROJO if u > 0.98 else (AMBAR if u > 0.80 else AZUL)
-        fig.add_trace(go.Scatter(x=[a[0][0], b[0][0], None], y=[a[0][1], b[0][1], None], mode="lines",
-                                 line=dict(color=col, width=1.0 + 9.0 * min(u, 1.5)),
-                                 hovertemplate=f"{r['nombre']}<br>uso medio {100*u:.0f} % · máximo "
-                                 f"{100*float(uso_max[i] if i < len(uso_max) else 0):.0f} %", name="_",
-                                 showlegend=False))
-        mx, my = (a[0][0] + b[0][0]) / 2.0, (a[0][1] + b[0][1]) / 2.0
-        fig.add_trace(go.Scatter(x=[mx], y=[my], mode="text",
-                                 text=[f"{100*u:.0f}%"], showlegend=False, hoverinfo="skip",
-                                 textfont=dict(size=9, color=col)))
-    px = 380.0 * np.sqrt(nd["CEN_MW"].to_numpy(dtype=float) / max(float(nd["CEN_MW"].max()), 1.0))
-    fig.add_trace(go.Scatter(x=nd["x"], y=nd["y"], mode="markers+text", text=nd["id"],
-                             textposition="top center", textfont=dict(size=11), name="Nodos",
-                             marker=dict(size=px, color=[color_tecnologia("HIDRAULICA")] * len(nd),
-                                         opacity=0.85, line=dict(width=1.2, color="#37474f")),
-                             hovertemplate="%{text}<br>CEN %{customdata[0]:,.0f} MW · demanda "
-                             "%{customdata[1]:.1%} del SIN<extra></extra>",
+        u = float(np.clip(uso_med[i_r] if i_r < len(uso_med) else 0.0, 0.0, 3.0))
+        umax = float(np.clip(uso_max[i_r] if i_r < len(uso_max) else u, 0.0, 3.0))
+        col = ROJO if u > 0.98 else (AMBAR if u > 0.80 else (AZUL if u > 0.50 else "#90a4ae"))
+        fig.add_trace(go.Scatter(x=[ka[0], kb[0]], y=[ka[1], kb[1]], mode="lines", showlegend=False,
+                                 line=dict(color=col, width=1.6 + 7.0 * min(u, 1.2), dash=None if u < 1.0
+                                          else "dot"), opacity=0.95,
+                                 hovertemplate=(f"<b>{r['nombre']}</b><br>{r['de']} → {r['a']}"
+                                                f"<br>uso medio {100*u:.0f} % · uso máximo {100*umax:.0f} %"
+                                                f"<br>límite {float(r['MW_max']):,.0f} MW"
+                                                "<extra></extra>")))
+        fig.add_annotation(x=(ka[0] + kb[0]) / 2.0, y=(ka[1] + kb[1]) / 2.0, text=f"{100*umax:.0f}%",
+                           showarrow=False, font=dict(size=10.5, color=col), align="center",
+                           bgcolor="rgba(255,255,255,0.94)", bordercolor=col, borderwidth=1,
+                           borderpad=2)
+    fig.add_trace(go.Scatter(x=pos[:, 0], y=pos[:, 1], mode="markers", name="Nodo (área = CEN)",
+                             marker=dict(size=rad, color=[color_tecnologia("HIDRAULICA")] * len(pos),
+                                         opacity=0.92, sizemode="diameter",
+                                         line=dict(width=1.6, color="#37474f")),
                              customdata=np.column_stack([nd["CEN_MW"].to_numpy(dtype=float),
-                                                          nd["share_demanda"].to_numpy(dtype=float)])))
-    fig.update_layout(xaxis=dict(visible=False), yaxis=dict(visible=False),
+                                                          nd["share_demanda"].to_numpy(dtype=float)]),
+                             hovertemplate=("<b>%{customdata[0]:,.0f} MW de CEN</b>"
+                                            "<br>demanda: %{customdata[1]:.1%} del SIN<extra></extra>")))
+    for k, nid in enumerate(nd["id"].astype(str)):
+        fig.add_annotation(x=pos[k][0], y=pos[k][1], text=f"<b>{nid}</b>", showarrow=False,
+                           font=dict(size=12, color="#102a43"))
+        fig.add_annotation(x=pos[k][0], y=pos[k][1] - 0.055 - 0.0012 * rad[k],
+                           text=(f"{float(nd['CEN_MW'].iloc[k]):,.0f} MW · "
+                                 f"{100.0*float(nd['share_demanda'].iloc[k]):.1f} % dem."),
+                           showarrow=False, font=dict(size=9, color="#37474f"),
+                           bgcolor="rgba(255,255,255,0.88)", borderpad=1)
+    fig.update_layout(xaxis=dict(visible=False, range=[-0.02, 1.02]),
+                      yaxis=dict(visible=False, range=[-0.04, 1.02]),
                       hoverlabel=dict(align="left"),
-                      annotations=[dict(text="Diagrama unilineal *esquemático*: la posición no es "
-                                              "geográfica, es la topología declarada en el módulo.",
-                                        xref="paper", yref="paper", x=0.01, y=-0.06, showarrow=False,
-                                        font=dict(size=10, color=GRIS))])
+                      legend=dict(orientation="h", y=-0.10, x=0),
+                      annotations=[dict(text="<i>Grosor = uso medio de la rama · el recuadro es el uso "
+                                              "<b>máximo</b> de las 24 h · el diámetro del círculo es la "
+                                              "CEN del nodo. La posición es esquemática (topología "
+                                              "declarada en el módulo), no geográfica.</i>",
+                                        xref="paper", yref="paper", x=0.0, y=-0.20, showarrow=False,
+                                        align="left", font=dict(size=10, color=GRIS))])
     viol = float(np.max(res["violacion"])) if np.size(res.get("violacion")) else 0.0
     return {"fig": fig, "leyenda": _leyenda(
-        "Malla eléctrica del modelo y su uso",
-        f"Nodos `{red['granularidad']}` con la CEN real de XM por subregión y las ramas del anillo "
-        f"500/230 kV; el grosor y el número son el uso medio horario de la rama y el color avisa "
-        f"cuando pasa del 80 % (rojo = violada en alguna hora).",
+        "La malla del modelo: ramas, uso y por qué diez nodos",
+        f"Los {len(pos)} nodos son las subregiones `{red['granularidad']}` con la CEN real de XM "
+        f"(cobertura toponímica {red['cobertura_toponimia']:.1f} %) y las {len(ram)} ramas del anillo "
+        "500/230 kV. Cada rama se pinta según el uso medio del día y se le pone encima el uso máximo "
+        "horario: azul = holgada, ámbar = al borde, rojo = violada en alguna hora.",
         f"Con `estres = {cfg['estres']:.2f}` hay {int(res['horas_congestion'])} de 24 h congestionadas y "
-        f"la violación máxima es {viol:,.0f} MW. Si el uso máximo no llega a 100 %, el precio zonal y "
-        "el nodal no pueden separarse: la discusión de la tesis requiere apretar la malla "
-        "(o refinarla con `media`), no es un defecto del modelo.",
-        "En seco sube el despacho térmico del centro y la demanda del pico, así que el corredor "
-        "NOR→CEN (hidráulica → carga) es el primero en saturarse: bajar `Capacidad de las líneas` "
-        "simula ese estrés de El Niño sobre la red.",
-        f"§2.6.1/§2.6.2 · PTDF DC · CEN de `CapEfecNeta` (cobertura toponímica "
-        f"{red['cobertura_toponimia']:.1f} %)")}
+        f"la violación máxima es {viol:,.0f} MW. Si ningún círculo se pone rojo, los multiplicadores μ "
+        "valen cero y el precio zonal y el nodal no pueden separarse: hay que apretar la malla "
+        "(`Capacidad de las líneas`) o refinarla (`media`/`fina`), y aun así la congestión que aparece "
+        "es la que los datos permiten sostener, no la que uno supone.",
+        "En seco sube el despacho térmico del centro y la demanda del pico, así que el corredor NOR→CEN "
+        "(hidráulica → carga) y el CAR→CEN (costa → carga) son los primeros en saturarse: bajar "
+        "`Capacidad de las líneas` simula ese estrés de El Niño sobre la red.",
+        "topología `RAMAS_BASE` + `matriz_ptdf` (PTDF de corriente continua) · CEN de `CapEfecNeta` · "
+        "los refuerzos candidatos se evalúan en «Refuerzos hipotéticos de la red»")
+}
+
+
+
 
 
 def fig_nodal_cap(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10032,7 +10524,7 @@ def fig_nodal_cap(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "nodo no puede reflejarla — hay que leer la figura antes de creer el LMP del nodo.",
         "El Niño cambia la mezcla, no la capacidad: la hidráulica del 62 % que se ve aquí es exactamente "
         "la que hace que un año seco suba el despacho térmico del centro y, con él, el spread CEN-NOR.",
-        "Anexo XM `CapEfecNeta_Res`/`dim_plantas` · §2.2.1 (UCF y recurso)")}
+        "Anexo XM `CapEfecNeta_Res`/`dim_plantas`  ·(UCF y recurso)")}
 
 
 def fig_nodal_calib(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10053,7 +10545,32 @@ def fig_nodal_calib(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
                              name="Nivel de oferta calibrado", line=dict(color=VERDE, width=1.8, dash="dot")))
     fig.add_hline(y=float(cal["nivel0"]), line=dict(color=AMBAR, dash="dash"),
                   annotation_text=f"nivel escalar {cal['nivel0']:,.0f}", annotation_font_size=10)
-    fig.update_layout(xaxis=dict(title="Hora del día (1-24)", dtick=2), yaxis_title="COP/kWh")
+    err_h = np.asarray(res["lam"], dtype=float)[:len(h)] - real[:len(res["lam"])]
+    fig.add_trace(go.Bar(x=h[:len(err_h)], y=err_h, name="error por hora (λ − XM)",
+                         marker_color="rgba(198,40,40,0.55)", xaxis="x2", yaxis="y2",
+                         hovertemplate="h%{x}: %{y:+,.1f} COP/kWh<extra>error</extra>"))
+    fig.update_layout(
+        grid=dict(rows=2, columns=1, pattern="independent"), height=560,
+        xaxis=dict(title="Hora · las tres series de la calibración", dtick=2),
+        yaxis=dict(title="COP/kWh"),
+        xaxis2=dict(title="Hora · residuo de la calibración (positivo = el modelo por encima de XM)",
+                    dtick=2, matches="x"),
+        yaxis2=dict(title="COP/kWh de error", zeroline=True, zerolinecolor=GRIS),
+        legend=dict(orientation="h", y=1.11, x=0, groupclick="toggleitem"), hovermode="x unified")
+    st.markdown(
+        "**Qué muestra cada trazo del panel superior** (y por qué los tres hacen falta):\n\n"
+        "- **Gris con puntos — `Precio de bolsa XM (mediana horaria)`**: el dato contra el que se calibra. "
+        "Es la *mediana* por hora de `PrecBolsNaci` en la ventana, no un día suelto: por eso no ve saltos "
+        "de un día al otro.\n"
+        "- **Azul — `λ uninodal del OPF calibrado`**: el precio del modelo con la curva de oferta ya "
+        "ajustada. Es la única línea que depende de los parámetros que usted mueve (topología, estrés, "
+        "curvatura); si se despega de la gris, ahí está el error del modelo.\n"
+        "- **Verde punteada — `Nivel de oferta calibrado`**: el multiplicador `nivel_h` hora a hora que "
+        "enciende o apaga tramos de la curva de oferta para que la azul siga a la gris. La línea ámbar "
+        "horizontal es el nivel escalar con el que arranca la bisección.\n\n"
+        "**Panel inferior:** el residuo λ − XM por hora, para que no haya que restar a ojo. Si el residuo "
+        "es plano en cero todo el día, la calibración está *sobreactuando* (el ajuste por hora ancla el "
+        "promedio de cada hora por construcción); lo que valida la forma es la figura de spread.")
     return {"fig": fig, "leyenda": _leyenda(
         "Cómo se ancla el modelo al mercado real (y hasta dónde se le puede creer)",
         f"La curva de oferta se calibra en dos etapas: bisección de κ para que el precio *uninodal* "
@@ -10064,9 +10581,9 @@ def fig_nodal_calib(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "no es una validación**: el ajuste por hora hace que la curva calibrada reproduzca el promedio "
         "de esa hora por construcción. Para comparar *formas* hay que mirar la figura del spread.",
         "Calibrar sobre la ventana seca (ago-2026) sesga el nivel al alza: en un mes húmedo el mismo κ "
-        "produciría precios 30-60 % menores, que es justo la amplitud que la tesis mide entre fase "
+        "produciría precios 30-60 % menores, que es justo la amplitud que se mide entre fase "
         "La Niña y El Niño.",
-        f"§2.3 · error {cal['error_calibracion_pct']:.2f} % · n={cal['n']} h · "
+        f" · error {cal['error_calibracion_pct']:.2f} % · n={cal['n']} h · "
         f"{str(cal.get('nota', ''))[:90]}")}
 
 
@@ -10106,7 +10623,7 @@ def fig_nodal_lmp(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "conclusión sobre 'el valor de la señal locacional' es prematura.",
         "En El Niño el hidro baja y sube el térmico del centro: la banda de horas 18-21 se calienta "
         "antes que las demás porque es cuando la demanda pica sin sol — el spread nodal crece justo ahí.",
-        "Eq. 2-15/2-21 · media de 31 días XM (2026-07-31→2026-08-26)")}
+        " · media de 31 días XM (2026-07-31→2026-08-26)")}
 
 
 def fig_nodal_spread(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10141,9 +10658,9 @@ def fig_nodal_spread(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "refuerzos. Bajo liquidación uninodal, lo paga todo el sistema en el precio sin aparecer en "
         "ninguna parte.",
         "Con embalses bajos la mediana se levanta y la banda se ensancha: la figura es el mecanismo por "
-        "el cual la tesis espera que el precio nodal *revele* el estrés hídrico por zona en vez de "
+        "el cual se espera que el precio nodal *revele* el estrés hídrico por zona en vez de "
         "promediarlo.",
-        "objetivo b · Eq. 2-19/2-21 · "
+        "objetivo b · "
         f"dispersion media {float(np.mean(res['dispersion'])):.1f} COP/kWh")}
 def fig_nodal_cong(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
     """Uso de ramas por hora, violación, pérdidas y precio en las horas activas."""
@@ -10180,12 +10697,12 @@ def fig_nodal_cong(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         f"`horas_congestion = {int(res['horas_congestion'])}`, `max_violacion = "
         f"{float(np.max(viol)) if viol.size else 0.0:,.0f} MW`, `converged = {bool(res['converged'])}`. "
         "Si el máximo no llega a 100 %, los multiplicadores μ son cero y el LMP colapsa al uninodal: "
-        "no es que el modelo ignore la red, es que *esa* red no congestiona. Para la tesis hay que "
-        "estresarla (`Capacidad de las líneas`) o refinarla (`media`).",
+        "no es que el modelo ignore la red, es que *esa* red no congestiona: hay que "
+        "estresarla (`Capacidad de las líneas`) o refinarla (`media`) para que la señal aparezca.",
         "Las pérdidas crecen con el despacho térmico del centro y con la rampa de la tarde; en un mes "
         "seco el pico de pérdidas se alinea con el pico de precio, así que la señal nodal *sin* pérdidas "
         "linealizadas (iteraciones = 0) subestima el spread entre NOR y CEN.",
-        "§2.6.1 Eq. 2-26/2-27 · perdas_iter = " + str(cfg["perdas_iter"]))}
+        " · perdas_iter = " + str(cfg["perdas_iter"]))}
 
 
 def fig_nodal_flujos(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10221,10 +10738,10 @@ def fig_nodal_flujos(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         f"La rama que domina el ranking es la que fija el spread: `{ram['nombre'].iloc[orden[0]]}` "
         f"(uso máximo {100*float(uso[orden[0]]):.0f} %). El valor de un refuerzo se mide por la renta "
         "que elimina, y esa renta es el presupuesto natural del refuerzo (el argumento de CREG 143/2021 "
-        "y del esquema PJM que cita la propuesta).",
+        "y del esquema PJM de referencia).",
         "En la ventana seca analizada el corredor hidráulico-norte → centro-este carga más porque el "
         "norte genera y el centro consume: es la dirección que un El Niño prolongado agrava.",
-        f"§2.6.1 · renta media {float(np.mean(res['renta_congestion']))/1e6:,.1f} M COP/h · "
+        f" · renta media {float(np.mean(res['renta_congestion']))/1e6:,.1f} M COP/h · "
         f"{j} = índice de la rama más usada")}
 
 
@@ -10277,11 +10794,11 @@ def fig_nodal_desp(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "En El Niño la capa hidráulica se aplana y la térmica cubre la rampa de la tarde: la figura "
         "cambia de color justo en 17-21 h, que es cuando sube el costo marginal y el recorte solar "
         "ya no ayuda.",
-        f"§2.4 · flex_frac {cfg['flex']:.0f} % · co2 {float(np.sum(res['co2_t'])):,.0f} t/día")}
+        f" · flex_frac {cfg['flex']:.0f} % · co2 {float(np.sum(res['co2_t'])):,.0f} t/día")}
 
 
 def fig_nodal_nodo(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
-    """Dos paneles: el nodo más caro y el más barato, balance y precio."""
+    """Todas las curvas: precio de cada nodo arriba y posición neta (gen − dem) de cada nodo abajo."""
     res = mdl["res"]
     p = np.asarray(res["precios"].get(cfg["regla"], res["p_dem"]), dtype=float)
     nodos = list(res["nodos"])
@@ -10289,37 +10806,73 @@ def fig_nodal_nodo(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         return None
     media = p.mean(axis=0)
     caro, bar = int(np.argmax(media)), int(np.argmin(media))
-    fig = _fig(ctx, 500)
-    for j, (nodo, col) in enumerate(((nodos[caro], ROJO), (nodos[bar], VERDE))):
-        h = np.arange(1, 25)
-        fig.add_trace(go.Scatter(x=h, y=np.asarray(res["dem"], dtype=float)[:, caro if j == 0 else bar],
-                                 name=f"{nodo} · demanda", line=dict(color=GRIS, width=1.8), xaxis="x",
-                                 yaxis=f"y{2*j+1}", visible=True))
-        fig.add_trace(go.Scatter(x=h, y=np.asarray(res["P_nodo"], dtype=float)[:, caro if j == 0 else bar],
-                                 name=f"{nodo} · generación", line=dict(color=col, width=2.2, shape="spline"),
-                                 yaxis=f"y{2*j+1}", xaxis="x"))
-        fig.add_trace(go.Scatter(x=h, y=p[:, caro if j == 0 else bar], name=f"{nodo} · precio",
-                                 line=dict(color="#263238", width=1.4, dash="dot"), yaxis=f"y{2*j+2}", xaxis="x"))
-    fig.update_layout(grid=dict(rows=2, columns=1, pattern="independent"),
-        xaxis=dict(title=f"Hora · panel superior = nodo más caro {nodos[caro]} "
-                         f"(media {media[caro]:,.1f} COP/kWh)", dtick=4),
-        xaxis2=dict(title=f"Hora · panel inferior = nodo más barato {nodos[bar]} "
-                          f"(media {media[bar]:,.1f} COP/kWh)", dtick=4),
-        yaxis=dict(title="MW"), yaxis2=dict(title="COP/kWh", overlaying="y", side="right", showgrid=False),
-        yaxis3=dict(title="MW"), yaxis4=dict(title="COP/kWh", overlaying="y2", side="right", showgrid=False),
-        legend=dict(orientation="h", y=1.16, x=0), hovermode="closest")
+    dem = np.asarray(res["dem"], dtype=float)
+    gen = np.asarray(res["P_nodo"], dtype=float) + np.asarray(res["ren"], dtype=float)
+    h = np.arange(1, p.shape[0] + 1)
+    fig = _fig(ctx, 620)
+    orden = list(np.argsort(-media))
+    for j in orden:
+        grosor = 3.0 if j in (caro, bar) else 1.2
+        opac = 1.0 if j in (caro, bar) else 0.62
+        col = ROJO if j == caro else (VERDE if j == bar else None)
+        fig.add_trace(go.Scatter(x=h, y=p[:, j], name=f"{nodos[j]} · {media[j]:,.0f}",
+                                 line=dict(width=grosor, color=col), opacity=opac,
+                                 xaxis="x", yaxis="y",
+                                 hovertemplate=f"<b>{nodos[j]}</b> {{y:,.1f}} COP/kWh<extra></extra>"))
+    fig.add_trace(go.Scatter(x=h, y=np.asarray(res["lam"], dtype=float)[:len(h)],
+                             name="λ uninodal (referencia)", line=dict(color="#263238", width=1.4,
+                                                                       dash="dot"), xaxis="x", yaxis="y",
+                             opacity=0.9))
+    for j in orden:
+        col = ROJO if j == caro else (VERDE if j == bar else None)
+        fig.add_trace(go.Scatter(x=h, y=gen[:, j] - dem[:, j], name=f"{nodos[j]} · posición",
+                                 line=dict(width=2.4 if j in (caro, bar) else 1.0, color=col),
+                                 opacity=1.0 if j in (caro, bar) else 0.5, showlegend=False,
+                                 xaxis="x2", yaxis="y2",
+                                 hovertemplate=f"<b>{nodos[j]}</b> {{y:+,.0f}} MW<extra>gen − dem</extra>"))
+    fig.add_trace(go.Scatter(x=h, y=np.zeros(len(h)), name="nodo balanceado (0 MW)", line=dict(
+        color=GRIS, width=1.1, dash="dash"), showlegend=True, xaxis="x2", yaxis="y2",
+        hoverinfo="skip"))
+    fig.update_layout(
+        grid=dict(rows=2, columns=1, pattern="independent"),
+        xaxis=dict(title=f"Hora · precio por nodo bajo la regla `{cfg['regla']}` (línea gruesa = el más "
+                         f"caro {nodos[caro]} y el más barato {nodos[bar]})", dtick=3),
+        yaxis=dict(title="COP/kWh", rangemode="tozero"),
+        xaxis2=dict(title="Hora · posición neta del nodo = generación propia (incluida la variable) − demanda",
+                    dtick=3, matches="x"),
+        yaxis2=dict(title="MW (− importa / + exporta)"),
+        legend=dict(orientation="h", y=1.10, x=0, groupclick="toggleitem", font=dict(size=10)),
+        hovermode="closest")
+    st.markdown("**Ranken de nodos de la jornada (para que sepa qué curva está mirando)**")
+    tabla = pd.DataFrame(dict(nodo=nodos, precio_medio_COP_kWh=media,
+                              vs_uninodal_COP_kWh=media - float(np.mean(res["lam"])),
+                              demanda_media_MW=dem.mean(axis=0)[:len(nodos)],
+                              generacion_media_MW=gen.mean(axis=0)[:len(nodos)],
+                              horas_sobre_lambda=[int(np.sum(p[:, j] > float(np.mean(res["lam"]))))
+                                                  for j in range(len(nodos))]))
+    st.dataframe(tabla.sort_values("precio_medio_COP_kWh", ascending=False).round(1),
+                 use_container_width=True, hide_index=True, height=min(360, 60 + 30 * len(tabla)))
+    st.caption("En el panel superior **están todas las curvas de precio a la vez** (una por nodo; antes "
+               "solo se pintaban las dos de los extremos). Haga clic en la leyenda para aislar nodos. En "
+               "el inferior, la posición neta: un nodo persistentemente negativo importa y por eso paga más "
+               "que el promedio; uno positivo exporta y cobra menos.")
     return {"fig": fig, "leyenda": _leyenda(
-        "Los dos extremos de la señal, nodo por nodo",
-        "Balance del nodo (demanda vs generación propia, incluida la variable) y su precio, para el "
-        "nodo con el LMP medio más alto y el más bajo de la topología actual. "
-        f"Brecha entre ellos: {float(media.max() - media.min()):,.1f} COP/kWh de media diaria.",
-        "Un nodo caro con generación propia escasa es un sitio para generación o almacenamiento; un nodo "
-        "barato con excedente es un sitio para demanda (data center, hidrógeno, bombeo). Esa es la "
-        "decisión de inversión que la liquidación uninodal no puede dar.",
-        "El nodo barato suele ser el hidro-norte y el caro el centro-este: la separación se agranda en "
-        "El Niño porque el norte deja de mandar excedente y el centro enciende térmica.",
-        "§2.4 · balance impuesto solo a nivel de sistema (los desbalances por nodo son el derrame de "
-        f"{float(np.max(np.asarray(res['derrame_MW'], dtype=float))):,.1f} MW máximo)")}
+        "Todos los nodos, no solo los dos extremos",
+        f"Precio horario de los {len(nodos)} nodos bajo la regla `{cfg['regla']}` (arriba, con λ uninodal "
+        "de referencia en gris punteado) y posición neta generación−demanda de cada nodo (abajo). El "
+        f"extremo más caro es {nodos[caro]} ({media[caro]:,.1f} COP/kWh de media) y el más barato "
+        f"{nodos[bar]} ({media[bar]:,.1f}): brecha {float(media.max() - media.min()):,.1f} COP/kWh.",
+        "Con todas las curvas se ve la estructura que los dos extremos esconden: si las curvas se agrupan "
+        "en dos manojos que se separan solo en horas pico, la congestión es *de franja* y se paga con "
+        "flexibilidad; si un nodo se despega solo y todo el día, el problema es de localización y se paga "
+        "con red o con generación en ese nodo. Abajo, la posición neta dice en qué horas el nodo caro "
+        "realmente no tiene con qué cubrirse.",
+        "El nodo barato suele ser el hidro-norte y el caro el centro-este; en seco los dos manojos se "
+        "separan más porque el norte deja de mandar excedente y el centro enciende térmica. Con `media` o "
+        "`fina` aparecen los nodos desdoblados: ahí se ve si la separación nace dentro de la subregión.",
+        "balance impuesto solo a nivel de sistema (el derrame por nodo es la consecuencia: máximo "
+        f"{float(np.max(np.asarray(res['derrame_MW'], dtype=float))):,.1f} MW)")
+}
 
 
 def fig_nodal_reglas(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10360,11 +10913,11 @@ def fig_nodal_reglas(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "Con embalses bajos el precio medio sube en las cuatro reglas por igual, pero la dispersión y "
         "la renta solo aparecen en las dos últimas: en El Niño la señal locacional se vuelve útil justo "
         "cuando el sistema está estresado.",
-        f"§2.4.3 · kpis_reglas() · {len(kp)} reglas · " + str(mdl.get("nota_reglas", ""))[:80])}
+        f" · kpis_reglas() · {len(kp)} reglas · " + str(mdl.get("nota_reglas", ""))[:80])}
 
 
 def fig_nodal_descomp(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
-    """Descomposición del LMP en energía + pérdidas + congestión (Eq. 2-21)."""
+    """Descomposición del LMP en energía + pérdidas + congestión."""
     de = mdl.get("desc")
     if not isinstance(de, pd.DataFrame) or de.empty:
         return None
@@ -10384,13 +10937,38 @@ def fig_nodal_descomp(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
     if "reportado" in d.columns:
         fig.add_trace(go.Scatter(x=d["nodo"], y=d["reportado"], name="LMP reportado por el OPF",
                                  mode="lines+markers", line=dict(color="#263238", width=1.6)))
-    fig.update_layout(barmode="stack", xaxis_title="Nodo",
+    fig.update_layout(barmode="stack", xaxis_title="Nodo (cada barra es un nodo de la topología activa)",
                       yaxis_title=f"COP/kWh (eje cortado en {base:,.0f} para que se vean las componentes)",
+                      legend=dict(orientation="h", y=1.14, x=0, groupclick="toggleitem"),
                       hovermode="x unified")
+    hh_cong = [int(x) for x in np.atleast_1d(np.asarray(mdl["res"].get("horas_congestion", []),
+                                                        dtype=int))] if "horas_congestion" in mdl["res"] else []
+    st.markdown(
+        f"**Qué es cada capa de la barra (hora foco {hh + 1}, elegida con `Hora foco` en la barra lateral):**"
+        "\n\n"
+        "- **Azul · componente energía** — el λ del sistema de esa hora, igual para todos los nodos. Es la "
+        "base: si un nodo solo difiere por esto, el precio *zonal* y el *nodal* le dan lo mismo.\n"
+        "- **Ámbar · pérdidas** — λ·LF_i: lo que cuesta transportar la energía hasta ese nodo. Es positivo "
+        "en los nodos que importan y negativo en los que exportan (por eso la barra azul está cortada en "
+        f"{base:,.0f}: sin ese corte las dos componentes locacionales serían invisibles junto a los ~{float(np.mean(d['energia'])) if len(d) else 0:,.0f} COP/kWh de energía).\n"
+        "- **Rojo · congestión** — Σ_k SF_ki·μ_k, la suma de lo que vale relajar cada rama saturada, "
+        "pesada por cuánto incide el nodo en esa rama (su factor de desplazamiento). Es **cero en las horas "
+        "sin congestión**: si toda la barra roja está vacía, cambie la hora foco.\n"
+        "- **Línea negra punteada · LMP reportado** — el precio que efectivamente devolvió el OPF. Debe "
+        "coincidir con la cima de la pila; la diferencia se reporta como `desvío` en la tabla.")
+    if hh_cong:
+        st.caption(f"Horas con congestión en este escenario: "
+                   f"{', '.join(str(v) for v in sorted(set(hh_cong)))[:180]}. Ponga la hora foco en una de "
+                   "ellas para ver la componente congestión; en hora valle el precio queda dominado por "
+                   "pérdidas.")
+    elif "hora" in d.columns:
+        st.caption("No hay horas congestionadas en este escenario: la componente de congestión vale cero "
+                   "en todos los nodos y la figura solo muestra energía + pérdidas. Apreté "
+                   "`Capacidad de las líneas` o cambie de topología para ver la señal locacional completa.")
     maxdesv = float(np.max(np.abs(d["desvio"]))) if "desvio" in d.columns else float("nan")
     return {"fig": fig, "leyenda": _leyenda(
         f"De dónde sale el precio de cada nodo (hora {hh+1})",
-        "Eq. 2-21 desglosada: λ de sistema + el término de pérdidas (λ·LF_i, con el factor de "
+        " desglosada: λ de sistema + el término de pérdidas (λ·LF_i, con el factor de "
         "participación del nodo) + la suma de multiplicadores de rama ponderados por PTDF. El punto "
         "negro es el LMP que realmente devolvió el OPF.",
         f"La suma de las tres componentes reproduce el precio con un error máximo de {maxdesv:.3g} "
@@ -10399,49 +10977,102 @@ def fig_nodal_descomp(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "En hora valle el sol deja el precio dominado por pérdidas (componente negativa en los nodos "
         "exportadores); en el pico de la tarde la congestión manda. El Niño corre el pico de pérdidas "
         "hacia 18-20 h porque el térmico del centro trabaja más.",
-        "Eq. 2-21 · descomposicion_precios()")}
+        " · descomposicion_precios()")}
 
 
 def fig_nodal_valida(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
-    """Validación del multiplicador dual contra ∂Costo/∂D por diferencias finitas."""
+    """Validación del multiplicador dual contra ∂Costo/∂D por diferencias finitas, con umbral explícito."""
     vr = mdl.get("vr")
     if isinstance(vr, dict):
         st.info(f"Validación no disponible: {vr.get('nota', 'no ejecutada')}")
         return None
     if not isinstance(vr, pd.DataFrame) or vr.empty:
         return None
-    fig = _fig(ctx, 430)
-    fig.add_trace(go.Scatter(x=np.asarray(vr["lambda_dual_cop_kWh"], dtype=float),
-                             y=np.asarray(vr["lambda_dif_finita_cop_kWh"], dtype=float), mode="markers",
-                             marker=dict(size=10, color=np.abs(np.asarray(vr["error_pct"], dtype=float)),
-                                         colorscale=[[0.0, "#2e7d32"], [0.5, "#f9a825"], [1.0, "#c62828"]],
-                                         showscale=True, colorbar=dict(title="|error| %", thickness=12)),
-                             text=vr["nodo"], hovertemplate="%{text}: dual %{x:,.1f} vs FD %{y:,.1f}<extra></extra>",
-                             name="Nodos (dual vs diferencias finitas)"))
-    lo = float(min(vr["lambda_dual_cop_kWh"].min(), vr["lambda_dif_finita_cop_kWh"].min()))
-    hi = float(max(vr["lambda_dual_cop_kWh"].max(), vr["lambda_dif_finita_cop_kWh"].max()))
+    err = np.abs(np.asarray(vr["error_pct"], dtype=float))
+    xd = np.asarray(vr["lambda_dual_cop_kWh"], dtype=float)
+    yf = np.asarray(vr["lambda_dif_finita_cop_kWh"], dtype=float)
+    umbral = 0.5                                             # % de error admitido como "iguales"
+    ok = err <= umbral
+    fig = _fig(ctx, 470)
+    lo = float(min(xd.min(), yf.min()))
+    hi = float(max(xd.max(), yf.max()))
+    # banda de ±umbral alrededor de la diagonal (en %, sobre el valor de la diagonal)
+    g = np.linspace(lo, hi, 60)
+    fig.add_trace(go.Scatter(x=np.concatenate([g, g[::-1]]),
+                             y=np.concatenate([g * (1.0 + umbral / 100.0), (g * (1.0 - umbral / 100.0))[::-1]]),
+                             fill="toself", fillcolor="rgba(46,125,50,0.12)", line=dict(width=0),
+                             hoverinfo="skip", showlegend=False))
+    fig.add_trace(go.Scatter(x=xd[~ok], y=yf[~ok], mode="markers", name=f"❌ error > {umbral:.1f} %",
+                             marker=dict(size=12, color=ROJO, symbol="x", line=dict(width=1.4, color="#7f0000")),
+                             text=vr["nodo"].to_numpy()[~ok],
+                             customdata=np.column_stack([err[~ok],
+                                                          np.asarray(vr["horas"], dtype=int)[~ok]]),
+                             hovertemplate=("<b>%{text}</b><br>dual %{x:,.1f} · FD %{y:,.1f}"
+                                            "<br>error %{customdata[0]:.2f} % en %{customdata[1]} h"
+                                            "<extra></extra>")))
+    fig.add_trace(go.Scatter(x=xd[ok], y=yf[ok], mode="markers", name=f"✔ error ≤ {umbral:.1f} %",
+                             marker=dict(size=9, color=VERDE, opacity=0.85,
+                                         line=dict(width=1.0, color="#1b5e20")),
+                             text=vr["nodo"].to_numpy()[ok],
+                             customdata=np.column_stack([err[ok],
+                                                          np.asarray(vr["horas"], dtype=int)[ok]]),
+                             hovertemplate=("<b>%{text}</b><br>dual %{x:,.1f} · FD %{y:,.1f}"
+                                            "<br>error %{customdata[0]:.3f} % en %{customdata[1]} h"
+                                            "<extra></extra>")))
     fig.add_trace(go.Scatter(x=[lo, hi], y=[lo, hi], mode="lines", name="y = x (igualdad exacta)",
                              line=dict(color=GRIS, width=1.2, dash="dash")))
-    fig.update_layout(xaxis_title="λ_i del OPF (multiplicador dual, COP/kWh)",
-                      yaxis_title="∂Costo/∂D_i por diferencias finitas (COP/kWh)", hovermode="closest")
-    err = np.abs(np.asarray(vr["error_pct"], dtype=float))
+    fig.update_layout(xaxis=dict(title="λ_i que devuelve el ascenso dual (COP/kWh)", ticksuffix=""),
+                      yaxis=dict(title="∂Costo/∂D_i medido por diferencias finitas (COP/kWh)"),
+                      legend=dict(orientation="h", y=1.12, x=0), hovermode="closest")
+    peor = (vr.assign(error=np.asarray(vr["error_pct"], dtype=float))
+            .reindex(columns=["nodo", "error", "lambda_dual_cop_kWh", "lambda_dif_finita_cop_kWh",
+                              "paso_MW", "horas"])
+            .sort_values("error", key=lambda c: c.abs(), ascending=False)
+            .rename(columns={"lambda_dual_cop_kWh": "dual", "lambda_dif_finita_cop_kWh": "FD",
+                             "paso_MW": "paso_MW", "horas": "h validadas"})
+            .head(6).round(3))
+    c1, c2 = st.columns([3, 2])
+    with c1:
+        st.markdown(f"**Los 6 puntos con mayor desviación** (de {len(vr)} nodos-hora validados; el "
+                    f"criterio de aprobación es |error| ≤ {umbral:.1f} %):")
+        st.dataframe(peor, use_container_width=True, hide_index=True, height=240)
+    with c2:
+        st.markdown("**Qué es cada punto**")
+        st.markdown(
+            f"- **Verde ✔** — el multiplicador del OPF y la derivada numérica coinciden dentro de "
+            f"{umbral:.1f} %: el dual es el precio de balance del nodo.\n"
+            f"- **Rojo ✖** — difieren más del umbral. Suele pasar en horas congestionadas con el dual "
+            "aún no convergido (la linealización de pérdidas deja un residuo) o cuando el paso de "
+            f"{float(np.mean(np.asarray(vr['paso_MW'], dtype=float))):.1f} MW cruza un cambio de bloque "
+            "activo y la FD salta discretamente mientras el dual sigue siendo lineal.\n"
+            f"- **Banda verde clara** — la propia tolerancia de ±{umbral:.1f} %. Si todos los puntos "
+            "caen dentro, la prueba está aprobada aunque la banda se vea gruesa a esta escala.\n"
+            f"- **Diagonal gris** — igualdad exacta.\n\n"
+            f"Aprobado en {int(np.sum(ok))}/{len(err)} puntos ({100.0*float(np.mean(ok)):.1f} %), error "
+            f"máximo {float(np.max(err)):.2f} % y mediano {float(np.median(err)):.3f} %.")
     return {"fig": fig, "leyenda": _leyenda(
-        "Prueba dura de que el LMP es el LMP",
-        f"Eq. 2-15 afirma que el precio nodal es el sombra del balance del nodo, ∂Costo/∂D_i. Se midió "
-        f"perturbando ±{float(np.mean(vr['paso_MW'])):.1f} MW la demanda de cada nodo y recalculando el OPF "
-        f"completo, sobre {int(np.mean(vr['horas']))} horas. Error máximo {float(np.max(err)):.2f} %, "
-        f"mediano {float(np.median(err)):.3f} %.",
-        "Esto es lo que legitima todo lo demás de la pestaña: si este panel se desvía de la diagonal, el "
-        "ascenso dual no está convergiendo y las cifras de renta/congestión no son de fiar (el modelo "
-        "reporta `converged`/`estancado` en la tarjeta de estado para el mismo efecto).",
-        "El error se concentra en los nodos con congestión activa, donde el término de pérdidas "
-        "linealizado introduce el mayor sesgo: en El Niño, con más horas congestionadas, la validez de "
-        "la linealización hay que volver a mirarla.",
-        "Eq. 2-15 · valida_lmp() · horas " + str(cfg["horas_valida"]))}
+        "El precio del modelo contra la derivada numérica del costo",
+        f"La definición de precio nodal es que λ_i sea la sombra del balance del nodo, ∂Costo/∂D_i. Se "
+        f"midió añadiendo {float(np.mean(np.asarray(vr['paso_MW'], dtype=float))):.1f} MW a la demanda "
+        f"de cada nodo y recalculando el OPF completo: {len(vr)} nodos, {int(np.mean(np.asarray(vr['horas'], dtype=float)))} "
+        "horas cada uno (el punto es el promedio del nodo en esas horas: una hora mala se diluye, así que "
+        "la prueba se complementa con la tabla de la derecha).",
+        f"Se aprueba con |error| ≤ {umbral:.1f} %: pasan {int(np.sum(ok))} de {len(err)} nodos "
+        f"(cada uno promediado sobre {int(np.mean(np.asarray(vr['horas'], dtype=float)))} h). Este "
+        "panel es lo que legitima todo lo demás de la pestaña —renta de congestión, descomposición del "
+        "LMP, cobertura—, porque sin dual correcto no hay precio que liquidar. Si la nube se descolgara "
+        "de la diagonal, habría que subir `Iteraciones de pérdidas` o `dual_iter` antes de creerle a "
+        "cualquier otra cifra.",
+        "Los rojos se concentran en horas con congestión activa, donde la linealización de pérdidas es más "
+        "burda: en un mes seco hay más horas así, así que la validez numérica se vuelve el primer "
+        "cuello de botella (suba `Horas a validar` para confirmar que no es azar de la ventana).",
+        "valida_lmp() con diferencias finitas sobre el mismo OPF; el umbral de aprobación es criterio "
+        "declarado de esta app, no un estándar de mercado")
+}
 
 
 def fig_nodal_esc(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
-    """Abanico estocástico: distribución del precio y del pico por nodo + congestión proxy."""
+    """Abanico de escenarios y, si hay segunda etapa, bandas de precio por nodo sin números encima."""
     esc = mdl.get("esc")
     if not isinstance(esc, dict) or not esc:
         return None
@@ -10452,42 +11083,70 @@ def fig_nodal_esc(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
     nodos = list(mdl["red"]["nodos"])
     w = np.asarray(mdl["red"]["peso_demanda"], dtype=float)
     w = w / max(float(np.sum(w)), 1e-12)
-    fig = _fig(ctx, 520)
-    # Panel 1: abanico de la demanda total de escenario (proxy del estresador)
+    fig = _fig(ctx, 500)
     tot = de.sum(axis=1)
-    for i in range(k):
-        fig.add_trace(go.Scatter(x=np.arange(1, H + 1), y=tot[i], mode="lines", line=dict(width=1.1),
-                                 opacity=0.55, name="Escenario típico", showlegend=(i == 0),
-                                 hovertemplate=f"típico {i+1} h%{{x}}: %{{y:,.0f}} MW<extra></extra>",
+    kk = min(k, 8)
+    for i in range(kk):
+        fig.add_trace(go.Scatter(x=np.arange(1, H + 1), y=tot[i], mode="lines", line=dict(width=1.2),
+                                 opacity=0.55, name=f"día típico {i+1}", showlegend=(i == 0),
                                  xaxis="x", yaxis="y"))
     base_dem = np.asarray(mdl["res"]["dem"], dtype=float).sum(axis=1)
-    fig.add_trace(go.Scatter(x=np.arange(1, len(base_dem) + 1), y=base_dem, name="Demanda del día medio (XM)",
-                             line=dict(color="#263238", width=2.4, dash="dash"), xaxis="x", yaxis="y"))
-    # Panel 2: distribución del precio por nodo (los 4 más pesados)
-    top = [i for i in np.argsort(-w)[:4] if i < n]
-    for j, i in enumerate(top):
-        fig.add_trace(go.Box(y=np.asarray(esc["demanda_MW"], dtype=float)[:, i, :], name=f"dem {nodos[i]}",
-                             x=[nodos[i]] * k, marker_color=[AZUL, VERDE, AMBAR, ROJO][j % 4],
-                             xaxis="x2", yaxis="y2", boxpoints="all", jitter=0.35, hoveron="boxes"))
-    fig.update_layout(grid=dict(rows=1, columns=2, pattern="independent"),
-        xaxis=dict(title="Hora (izq: escenarios típicos vs día medio real; der: por nodo)", dtick=4),
-        yaxis=dict(title="MW · escenario típico"), xaxis2=dict(title="Nodo (cajas = demanda horaria)"),
-        yaxis2=dict(title="MW por hora"), showlegend=True,
-        legend=dict(orientation="h", y=1.14, x=0), hovermode="closest")
+    fig.add_trace(go.Scatter(x=np.arange(1, len(base_dem) + 1), y=base_dem, name="día medio real (XM)",
+                             line=dict(color="#263238", width=2.6, dash="dash"), xaxis="x", yaxis="y",
+                             opacity=0.95))
+    es = mdl.get("est")
+    if isinstance(es, dict) and es:
+        pre = np.asarray(es["precios_nodo"], dtype=float)          # (k, n) precio medio por escenario
+        top = [int(i) for i in np.argsort(-w)[:6] if i < n]
+        for j, i in enumerate(top):
+            fig.add_trace(go.Box(y=pre[:, i], name=nodos[i], x=[nodos[i]] * int(pre.shape[0]),
+                                 marker_color=[AZUL, VERDE, AMBAR, ROJO, NARANJA, GRIS][j % 6],
+                                 boxmean=True, boxpoints=False, xaxis="x2", yaxis="y2",
+                                 hovertemplate=f"<b>{nodos[i]}</b><br>p05 %{{lowerfence:,.0f}} · mediana "
+                                 f"%{{median:,.0f}} · p95 %{{upperfence:,.0f}} COP/kWh<extra></extra>"))
+        tit2 = "COP/kWh (precio medio del día por escenario)"
+    else:
+        top = [int(i) for i in np.argsort(-w)[:4] if i < n]
+        for j, i in enumerate(top):
+            fig.add_trace(go.Box(y=de[:, i, :], name=nodos[i], x=[nodos[i]] * k,
+                                 marker_color=[AZUL, VERDE, AMBAR, ROJO][j % 4], boxmean=True,
+                                 boxpoints=False, xaxis="x2", yaxis="y2",
+                                 hovertemplate=f"<b>{nodos[i]}</b><br>%{{min:,.0f}} → %{{max:,.0f}} "
+                                 f"MW<extra></extra>"))
+        tit2 = "MW por hora (demanda del nodo)"
+    fig.update_layout(
+        grid=dict(rows=1, columns=2, pattern="independent"),
+        xaxis=dict(title="Hora · demanda del sistema en los días típicos", dtick=4),
+        yaxis=dict(title="MW del sistema"),
+        xaxis2=dict(title="Nodo" + (" · distribución del precio entre escenarios"
+                                    if isinstance(es, dict) and es else " · distribución de la demanda")),
+        yaxis2=dict(title=tit2),
+        legend=dict(orientation="h", y=1.13, x=0, groupclick="toggleitem"), hovermode="closest")
+    st.caption(
+        "Cómo se conecta este abanico con el precio: se simulan trayectorias horarias (log-normal la "
+        "solar, Weibull la eólica caribeña, gamma la demanda, con la fase ENSO desplazando las medias), "
+        "se reducen a días típicos por k-medias con pesos y **cada día típico se despacha con el mismo "
+        "OPF del día real** — así la banda no es decoración: es el precio que habría regido en esa "
+        "trayectoria, con sus propias pérdidas y su propia congestión. Se apaga con el toggle "
+        "*Despachar cada escenario típico con su propio OPF* de la barra lateral.")
     return {"fig": fig, "leyenda": _leyenda(
         "Los escenarios que usa la capa estocástica",
         f"{int(mdl.get('esc_n', cfg['n_esc']))} trayectorias horarias generadas con familias "
         f"`{cfg['fam_sol']}` (solar) y `{cfg['fam_eol']}` (eólica), correlación entre nodos "
         f"ρ={cfg['rho_recurso']:.2f} y cruce sol-viento ρ={cfg['rho_cruce']:.2f}, reducidas a "
-        f"{k} escenarios típicos por k-medias (inercia {float(esc.get('inercia', 0.0)):.3f}).",
-        "Los escenarios son el insumo de la programación estocástica: el despacho aquí no se re-optimiza "
-        "por escenario (sería un LP por trayectoria), sino que se lee la distribución de la variable. "
-        "Las cajas a la derecha muestran que la dispersión *entre nodos* no es simétrica: la Guajira y "
-        "el Oriente tienen colas mucho más largas que el centro.",
-        "Las familias se ajustan al recurso real de la ventana; en un mes El Niño la log-normal solar "
-        "engorda su media (más nubosidad en el interior) y la Weibull eólica del Caribe se desplaza a "
-        "la izquierda: el mismo κ produce precios más altos y más variables.",
-        f"§2.2.1/§2.2.2 · k-medias (Lloyd, {int(cfg['n_esc'])}→{k}) · KS contra la serie real")}
+        f"{k} escenarios típicos por k-medias (inercia {float(esc.get('inercia', 0.0)):.3f}). "
+        "Se dibujan los primeros 8 típicos; las cajas del panel derecho son la **dispersión del precio "
+        "medio del día por escenario** cuando la segunda etapa está encendida (si no, de la demanda).",
+        "El panel izquierdo responde «¿el día típico se parece al día de XM?»: si los trazos grises "
+        "envuelven la curva negra sin desplazarla, la reducción a días típicos no está borrando el pico. "
+        "El derecho responde la pregunta que importa para liquidar: en qué nodos el precio es *inseguro* "
+        "(caja alta) y en cuáles es apenas un corrimiento del promedio (caja estrecha).",
+        "En El Niño las cajas se ensanchan y se separan entre sí: la incertidumbre deja de ser un factor de "
+        "escala y pasa a ser locacional, que es justo el régimen donde una liquidación uninodal distribuye "
+        "mal los riesgos.",
+        "gen_escenarios() → reduce_escenarios() (k-medias con pesos) → [despacho_estocastico()] → cajas "
+        "por nodo; el KS de cada familia se audita en «Calibración de la oferta»")
+}
 
 
 def fig_nodal_flex(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10513,12 +11172,51 @@ def fig_nodal_flex(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         fig.add_hline(y=_g0, line=dict(color=ROJO, width=1.2, dash="dot"),
                       annotation_text=f"gatillo pedido en la barra: {_g0:,.0f}",
                       annotation_font_size=9.5, annotation_font_color=ROJO)
-    fig.update_layout(xaxis_title="Demanda interrumpible (% de la demanda del sistema)",
-                      yaxis_title="λ medio (COP/kWh)",
-                      yaxis2=dict(title="GWh/día no servidos", overlaying="y", side="right",
-                                  showgrid=False), hovermode="x unified")
-    st.dataframe(fx[["flex_pct", "gatillo_COP_kWh", "lam", "dispersion", "precio_max", "corte_GWh",
-                    "recorte_GWh", "horas_congestion", "viol_MW", "rc_MCP_h", "co2_t", "conv"]]
+    # etiquetas cortas y Δ contra el caso sin flexibilidad: el signo es lo que hay que leer
+    gat = sorted(set(float(v) for v in fx["gatillo_COP_kWh"]))
+    ref = {g: float(fx[(fx["gatillo_COP_kWh"] == g) &
+                       (fx["flex_pct"] == fx["flex_pct"].min())]["lam"].iloc[0]) for g in gat}
+    refc = {g: float(fx[(fx["gatillo_COP_kWh"] == g) &
+                        (fx["flex_pct"] == fx["flex_pct"].min())]["corte_GWh"].iloc[0]) for g in gat}
+    refh = {g: float(fx[(fx["gatillo_COP_kWh"] == g) &
+                        (fx["flex_pct"] == fx["flex_pct"].min())]["horas_congestion"].iloc[0]) for g in gat}
+    fx2 = fx.copy()
+    fx2["etiqueta"] = fx2["flex_pct"].map(lambda v: f"{float(v):.0f} %")
+    fx2["d_lam"] = [float(a) - ref[g] for a, g in zip(fx2["lam"], fx2["gatillo_COP_kWh"])]
+    fx2["d_corte"] = [float(a) - refc[g] for a, g in zip(fx2["corte_GWh"], fx2["gatillo_COP_kWh"])]
+    fx2["d_cong"] = [float(a) - refh[g] for a, g in zip(fx2["horas_congestion"], fx2["gatillo_COP_kWh"])]
+    colores = [AZUL, AMBAR, VERDE, ROJO, GRIS]
+    fig.data = ()
+    for q, g in enumerate(gat):
+        sub = fx2[fx2["gatillo_COP_kWh"] == g].sort_values("flex_pct")
+        fig.add_trace(go.Scatter(x=list(sub["etiqueta"]), y=sub["lam"],
+                                 name=f"λ · gatillo {g:,.0f}", mode="lines+markers",
+                                 line=dict(width=2.2, color=colores[q % 5]), marker=dict(size=7),
+                                 xaxis="x", yaxis="y"))
+        fig.add_trace(go.Bar(x=list(sub["etiqueta"]), y=sub["d_lam"],
+                             name=f"Δλ · gatillo {g:,.0f}", marker_color=colores[q % 5], opacity=0.85,
+                             text=[f"{v:+,.1f}" for v in sub["d_lam"]], textposition="outside",
+                             xaxis="x2", yaxis="y2",
+                             hovertemplate="%{x}<br>Δλ %{y:+,.2f} COP/kWh<extra></extra>"))
+    fig.update_layout(
+        grid=dict(rows=1, columns=2, pattern="independent"), height=470, barmode="group",
+        xaxis=dict(title="Demanda interrumpible declarada", tickangle=0),
+        yaxis=dict(title="λ medio del sistema (COP/kWh)"),
+        xaxis2=dict(title="Demanda interrumpible declarada (misma escala)"),
+        yaxis2=dict(title="Δλ contra «0 %» (COP/kWh)", zeroline=True, zerolinecolor=GRIS),
+        legend=dict(orientation="h", y=1.14, x=0, groupclick="toggleitem", font=dict(size=10)),
+        hovermode="closest")
+    st.markdown(
+        "**Cómo leer el signo (es lo único importante del panel derecho):** "
+        "**Δλ < 0** = la interrupción comprada *abarata* el día: se apaga el bloque más caro del pico y el "
+        "despacho marginal baja. **Δλ > 0** = la *encarece*: pasa cuando el gatillo corta energía en horas "
+        "donde aún no hacía falta y obliga a encender un bloque con arranque caro para cubrir el pico, o "
+        "cuando el corte en un nodo exportador convierte su excedente en congestión en otro. **Δλ ≈ 0** = "
+        "la red no estaba apretando en esa hora: se paga el corte sin recibir señal. La columna "
+        "`d_corte` (abajo) es el precio de la cobertura, en GWh/día no servidos.")
+    st.dataframe(fx2[["flex_pct", "etiqueta", "gatillo_COP_kWh", "lam", "d_lam", "dispersion",
+                      "precio_max", "corte_GWh", "d_corte", "horas_congestion", "d_cong", "recorte_GWh",
+                      "viol_MW", "rc_MCP_h", "costo_MCop_h", "co2_t", "conv"]]
                  .round(1), use_container_width=True, hide_index=True, height=190)
     return {"fig": fig, "leyenda": _leyenda(
         "Desconexión voluntaria: qué se compra y qué se paga (objetivo a)",
@@ -10537,9 +11235,9 @@ def fig_nodal_flex(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "esa cobertura es exactamente la columna `corte_GWh`.",
         "Bajo El Niño el gatillo se cruza en más horas, así que la curva se vuelve más plana (el "
         "techo lo pone el gatillo, no el costo marginal) y el pago en bienestar se traslada a la "
-        "columna de corte. Es el mecanismo que la propuesta pide evaluar: la demanda desconectable "
+        "columna de corte. Es el mecanismo que el objetivo a pide evaluar: la demanda desconectable "
         "como tercer instrumento, junto con la red y el almacenamiento.",
-        "objetivo a · `barrido_flexibilidad()` con el mismo OPF (Eq. 2-16 con corte por nodo); "
+        "objetivo a · `barrido_flexibilidad()` con el mismo OPF (con corte por nodo); "
         "las tres líneas son los tres gatillos de la malla: p40, p75 y p95 de los precios "
         "nodales de **este** escenario (el gatillo de la barra de controles, "
         + (f"{float(cfg.get('gatillo') or 0.0):,.0f} COP/kWh" if cfg.get('gatillo') else "sin fijar")
@@ -10611,7 +11309,7 @@ def fig_nodal_beneficios(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         s0, s1 = sn.iloc[0], sn.iloc[-1]
         _add("Dispersión de precios con la penetración variable máxima", float(s0["dispersion"]),
              float(s1["dispersion"]), "COP/kWh", "up",
-             "más variabilidad exige más señal locacional: es el argumento de la tesis para el objetivo d")
+             "más variabilidad exige más señal locacional: es el argumento que sostiene el objetivo d")
         _add("Recorte renovable en el barrido de penetración", float(s0["recorte_GWh"]),
              float(s1["recorte_GWh"]), "GWh", "down",
              "informativo: la penetración variable añade recorte aunque el precio medio baje")
@@ -10652,7 +11350,7 @@ def fig_nodal_beneficios(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "referencia (uninodal, o el escenario sin el mecanismo) y el caso nodal/con el mecanismo. El "
         "texto sobre la barra trae el antes → después en su unidad; la tabla repite las cifras con la "
         "nota de interpretación.",
-        f"{n_pos} de {len(df)} marcadores salen a favor. La lectura que sostiene la tesis no es que el "
+        f"{n_pos} de {len(df)} marcadores salen a favor. La lectura que sostiene este marcador no es que el "
         "precio suba o baje: es que la señal **asigna** — el déficit de liquidación deja de ser un "
         "cargo sistémico sin dueño, la renta de congestión pasa a estar identificada (y por tanto "
         "negociable como garantía de refuerzo), el mark-up de equilibrio cae cuando el agente ya no "
@@ -10665,6 +11363,504 @@ def fig_nodal_beneficios(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "día plano, se cobra en el día de escasez.",
         "kpis_reglas() + barrido_flexibilidad() + aprendizaje_regla() + ems_almacenamiento() + "
         "sensibilidad_penetracion(), todo con la red y la oferta del escenario activo")}
+
+
+# ------------------ 10.12 · segunda etapa estocástica (OPF por escenario) ----
+
+def despacho_estocastico(red: dict, res_hn: dict[str, Any], esc: dict[str, Any],
+                         nivel_cop_kwh, *, kappa: float = 0.5, perdas_iter: int = 3,
+                         flex_frac: float = 0.0, gatillo_cop: float = 0.0,
+                         alm: dict | None = None) -> dict[str, Any]:
+    """Resuelve el OPF **escenario a escenario** sobre los días típicos y mide el valor de la señal.
+
+    Es la segunda etapa que faltaba: hasta ahora los escenarios alimentaban perfiles y momentos, pero
+    el precio se leía del día medio. Aquí cada día típico se despacha de verdad (su propio OPF con
+    pérdidas y congestión), lo que permite reportar la distribución del precio por nodo, la probabilidad
+    de escasez, la cola (CVaR) y el costo de *ignorar* la incertidumbre:
+
+    * **WS** (wait-and-see) = costo esperado usando el despacho óptimo de cada escenario.
+    * **HN** (here-and-now) = costo esperado congelando el despacho del escenario medio y pagando el
+      desbalance de cada escenario al precio de escasez de la hora (recourse simplificado: no hay
+      compromiso unidad a unidad, así que es una cota *optimista* del castigo por ignorar la curva).
+    * **VSS = HN − WS** (≥ 0 por construcción, salvo ruido numérico).
+
+    `esc` llega de `reduce_escenarios` con arrays (k, n, H); `opf_nodal` espera (H, n), de ahí los `.T`.
+    """
+    dem = np.asarray(esc["demanda_MW"], dtype=float)                       # (k, n, H)
+    if dem.ndim != 3 or dem.shape[0] == 0:
+        raise ValueError("el set reducido de escenarios no trae demanda (k, n, H)")
+    sol = np.asarray(esc.get("solar_MW", np.zeros_like(dem)), dtype=float)
+    eol = np.asarray(esc.get("eolica_MW", np.zeros_like(dem)), dtype=float)
+    k, n, H = int(dem.shape[0]), int(dem.shape[1]), int(dem.shape[2])
+    w = np.asarray(esc.get("pesos", np.full(k, 1.0 / max(k, 1))), dtype=float).ravel()[:k]
+    w = np.where(np.isfinite(w) & (w > 0), w, 1.0 / max(k, 1))
+    w = w / max(float(w.sum()), 1e-12)
+    wd = np.asarray(red["peso_demanda"], dtype=float).ravel()[:n]
+    wd = wd / max(float(wd.sum()), 1e-12)
+    nivel = np.asarray(nivel_cop_kwh, dtype=float).ravel()
+    if nivel.size == 1:
+        nivel = np.full(H, float(nivel[0]))
+    elif nivel.size != H:
+        nivel = np.resize(nivel, H)
+
+    pre = np.zeros((k, H))
+    pre_nod = np.zeros((k, n))
+    dis = np.zeros((k, H))
+    costo = np.zeros(k)
+    recorte = np.zeros(k)
+    corte = np.zeros(k)
+    cong = np.zeros(k)
+    co2 = np.zeros(k)
+    viol = np.zeros(k)
+    conv = np.ones(k, dtype=bool)
+    for j in range(k):
+        r = opf_nodal(red, demanda=dem[j].T[:H], solar=sol[j].T[:H], eolica=eol[j].T[:H],
+                      nivel_cop_kwh=nivel[:H], kappa_hibrido=kappa, perdas_iter=perdas_iter,
+                      flex_frac=flex_frac, flex_gatillo_cop=float(gatillo_cop), almacenamiento=alm)
+        pd_ = np.asarray(r["p_dem"], dtype=float).reshape(H, -1)[:, :n]
+        pre[j] = pd_ @ wd
+        pre_nod[j] = pd_.mean(axis=0)
+        dis[j] = np.asarray(r["dispersion"], dtype=float).ravel()[:H]
+        costo[j] = float(np.mean(np.asarray(r["costo"], dtype=float)))
+        recorte[j] = float(np.sum(np.asarray(r["recorte_MWh"], dtype=float)))
+        corte[j] = float(np.sum(np.asarray(r["corte"], dtype=float)))
+        cong[j] = float(r["horas_congestion"])
+        co2[j] = float(np.sum(r["co2_t"]))
+        viol[j] = float(r["max_violacion"])
+        conv[j] = bool(r["converged"])
+
+    # ---- acá-y-ahora: congelar el despacho del escenario medio y pagar el desbalance -------------
+    hn_costo = float("nan")
+    base_costo = float("nan")
+    try:
+        of = res_hn["oferta"]
+        q = np.asarray(res_hn["P_bloque"], dtype=float)                     # (H, G) del día medio
+        c1 = np.asarray(of["c1"], dtype=float)
+        c2 = np.asarray(of["c2"], dtype=float)
+        pmax = np.asarray(of["pmax"], dtype=float).ravel()
+        if c1.ndim == 1:
+            c1 = np.broadcast_to(c1[None, :], q.shape)
+            c2 = np.broadcast_to(c2[None, :], q.shape)
+        q = np.clip(q, 0.0, pmax[None, :q.shape[1]])
+        var_costo_h = 1000.0 * np.sum(c1 * q + c2 * q ** 2, axis=1)          # COP/h
+        base_costo = float(np.mean(var_costo_h[:H]))
+        gen_hn = np.asarray(q, dtype=float).sum(axis=1)[:H]
+        techo = float(np.asarray(res_hn.get("techo", 0.0), dtype=float).ravel()[0]) or 2000.0
+        castigo = np.zeros(k)
+        for j in range(k):
+            d_s = np.asarray(dem[j], dtype=float).sum(axis=0)[:H]            # MW del sistema por hora
+            ren_s = (np.asarray(sol[j], dtype=float) + np.asarray(eol[j], dtype=float)).sum(axis=0)[:H]
+            bal = d_s - gen_hn - ren_s                        # MW sin servir (+); pérdidas excluidas
+            castigo[j] = float(np.mean(1000.0 * np.maximum(bal, 0.0) * techo))
+        hn_costo = base_costo + float(np.sum(w * castigo))
+    except Exception:                                                        # noqa: BLE001
+        hn_costo = base_costo = float("nan")
+
+    ws = float(np.sum(w * costo))
+    banda = np.percentile(pre, [5.0, 25.0, 50.0, 75.0, 95.0], axis=0)
+    esc_real = np.asarray(res_hn["p_dem"], dtype=float).reshape(H, -1)[:, :n] @ wd
+    umbral = float(np.percentile(esc_real, 95.0)) if esc_real.size else float("nan")
+    sobre = (pre > umbral).astype(float) if np.isfinite(umbral) else np.zeros_like(pre)
+    p_esc = (sobre * w[:, None]).sum(axis=0)
+    cola = np.sort(pre, axis=0)[: max(1, int(np.ceil(0.05 * k))), :].mean(axis=0)
+    por_esc = pd.DataFrame(dict(
+        escenario=np.arange(1, k + 1), peso=w, precio_medio=pre.mean(axis=1),
+        dispersion_media=dis.mean(axis=1), costo_MCop_h=costo / 1e6,
+        recorte_GWh=recorte / 1000.0, corte_GWh=corte / 1000.0, horas_congestion=cong,
+        viol_MW=viol, co2_t=co2, converge=conv))
+    nod = pd.DataFrame(dict(
+        nodo=list(red["nodos"])[:n], media=pre_nod.mean(axis=0), sd=pre_nod.std(axis=0),
+        p05=np.percentile(pre_nod, 5.0, axis=0), p50=np.percentile(pre_nod, 50.0, axis=0),
+        p95=np.percentile(pre_nod, 95.0, axis=0),
+        spread=np.percentile(pre_nod, 95.0, axis=0) - np.percentile(pre_nod, 5.0, axis=0)))
+    return dict(k=k, H=H, n=n, precios=pre, precios_nodo=pre_nod,
+                bandas=dict(p05=banda[0], p25=banda[1], p50=banda[2], p75=banda[3], p95=banda[4]),
+                p_escasez=p_esc, cvar_cola=cola, umbral_real=umbral, por_escenario=por_esc, nodo=nod,
+                ws_COP_h=ws, hn_COP_h=hn_costo, hn_costo_base=base_costo,
+                vss_pct=(100.0 * (hn_costo - ws) / abs(ws)
+                         if (np.isfinite(hn_costo) and abs(ws) > 1e-9) else float("nan")),
+                dispersion_esperada=float(np.sum(w * dis.mean(axis=1))),
+                costo_medio_escenario=float(np.mean(costo)))
+
+
+
+def fig_nodal_esto(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
+    """Diagnóstico de la capa estocástica: escenarios despachados, bandas y valor de la señal."""
+    es = mdl.get("est")
+    if not isinstance(es, dict) or not es:
+        return None
+    fig = _fig(ctx, 520)
+    bd = es["bandas"]
+    h = np.arange(1, int(es["H"]) + 1)
+    fig.add_trace(go.Scatter(x=h, y=bd["p95"], name="p95 del índice de precio", mode="lines",
+                            line=dict(width=0.8, color=ROJO), opacity=0.65, xaxis="x", yaxis="y"))
+    fig.add_trace(go.Scatter(x=h, y=bd["p05"], name="p05", mode="lines", fill="tonexty",
+                            fillcolor="rgba(198,40,40,0.10)", line=dict(width=0.8, color=ROJO),
+                            opacity=0.65, showlegend=False, xaxis="x", yaxis="y"))
+    fig.add_trace(go.Scatter(x=h, y=bd["p50"], name="mediana de escenarios", line=dict(color=AZUL, width=2.2),
+                             xaxis="x", yaxis="y"))
+    real = np.asarray(mdl["res"]["p_dem"], dtype=float) @ (
+        np.asarray(mdl["red"]["peso_demanda"], dtype=float)
+        / max(float(np.sum(np.asarray(mdl["red"]["peso_demanda"], dtype=float))), 1e-12))
+    fig.add_trace(go.Scatter(x=h[: len(real)], y=real[: len(h)], name="día medio real (XM)",
+                             line=dict(color="#263238", width=1.4, dash="dot"), xaxis="x", yaxis="y"))
+    fig.add_trace(go.Scatter(x=h, y=np.asarray(es["p_escasez"], dtype=float) * 100.0,
+                             name="P(precio > p95 real) (%)", mode="lines+markers",
+                             line=dict(color=AMBAR, width=1.8, dash="dashdot"), yaxis="y2",
+                             xaxis="x"))
+    fig.update_layout(xaxis=dict(title="Hora", dtick=3),
+                      yaxis_title="COP/kWh (banda p05-p95 y mediana)",
+                      yaxis2=dict(title="% de escenarios sobre el p95 real", overlaying="y", side="right",
+                                  showgrid=False, range=[0, 105]),
+                      legend=dict(orientation="h", y=1.12, x=0), hovermode="x unified")
+    st.markdown("**Tablas: escenario por escenario y nodo por nodo**")
+    with st.container(border=True):
+        cc1, cc2 = st.columns(2)
+        with cc1:
+            st.dataframe(es["por_escenario"].round(2), use_container_width=True, hide_index=True,
+                         height=min(360, 90 + 32 * len(es["por_escenario"])))
+            st.caption("`precio_medio` y `dispersion_media` por día típico; `peso` es el de k-medias. "
+                       "Si dos escenarios pesan poco y se ven idénticos, suba `Escenarios típicos`.")
+        with cc2:
+            st.dataframe(es["nodo"].round(1), use_container_width=True, hide_index=True,
+                         height=min(360, 90 + 32 * len(es["nodo"])))
+            st.caption("Distribución del LMP por nodo sobre los escenarios despachados: el `spread` "
+                       "p05→p95 es el riesgo de precio **locacional**, que el uninodal no muestra.")
+    vs = float(es.get("vss_pct", float("nan")))
+    st.markdown(
+        f"**Valor de tratar la incertidumbre explícitamente.** WS (despachar cada escenario óptimo) = "
+        f"{float(es['ws_COP_h'])/1e6:,.1f} M COP/h; HN (congelar el plan del escenario medio y pagar el "
+        f"desbalance al precio de escasez) = {float(es['hn_COP_h'])/1e6:,.1f} M COP/h → "
+        f"**VSS = {vs:+.2f} %**. Probabilidad media de que el precio supere el p95 real: "
+        f"{100.0 * float(np.mean(es['p_escasez'])):.1f} %, con cola (CVaR del 5 % inferior de los "
+        f"escenarios) en {float(np.mean(es['cvar_cola'])):,.0f} COP/kWh.")
+    mom = mdl.get("esc_mom")
+    if isinstance(mom, pd.DataFrame) and not mom.empty:
+        st.markdown("**Calibración del generador contra la serie real de la ventana** "
+                    "(si los momentos no empatan, el abanico está mal ajustado, no el OPF):")
+        st.dataframe(mom[["serie", "real_media", "sim_media", "Δ_media_pct", "real_sd", "sim_sd",
+                          "real_cv", "sim_cv", "real_rho1", "sim_rho1"]].round(3),
+                     use_container_width=True, hide_index=True, height=170)
+        st.caption("ρ1 es la autocorrelación a un paso: mide si la serie conserva su nivel de una hora a "
+                   "la siguiente. El generador la reproduce en demanda y solar; en eólica XM publica un "
+                   "promedio nacional mucho más liso que una trayectoria de viento, de ahí la "
+                   "corrección de varianza que sigue.")
+    cv = mdl.get("esc_cv")
+    if isinstance(cv, pd.DataFrame) and not cv.empty:
+        st.markdown(f"**Emparejamiento de varianza aplicado a los {int(es['k'])} días típicos** "
+                    "(`x' = μ + α·(x − μ)`, α = CV real / CV simulado, por nodo y serie; la media y las "
+                    "correlaciones no se tocan):")
+        st.dataframe(cv.groupby("serie", as_index=False)[["cv_real", "cv_antes", "cv_ahora", "alfa"]]
+                     .mean().round(3), use_container_width=True, hide_index=True, height=140)
+    return {"fig": fig, "leyenda": _leyenda(
+        "La capa estocástica, ahora con el despacho por escenario",
+        f"{int(es['k'])} días típicos (reducidos de {int(mdl.get('esc_n', 0))} trayectorias) despachados "
+        "cada uno con su propio OPF con pérdidas y congestión. La banda es el p05-p95 del índice de "
+        "precio de sistema y la línea ámbar, la probabilidad de que el precio supere el percentil 95 del "
+        "día real de XM. Al lado, la tabla por escenario y la distribución del LMP por nodo.",
+        f"El costo de ignorar la incertidumbre (VSS) es {vs:+.2f} % sobre el costo esperado. Con topología "
+        f"`{mdl['red']['granularidad']}` y estrés {float(cfg['estres']):.2f}, la dispersión esperada entre "
+        f"nodos es {float(es['dispersion_esperada']):,.1f} COP/kWh: eso, no el precio medio, es lo que el "
+        "uninodal esconde. La probabilidad media de escasez "
+        f"({100.0 * float(np.mean(es['p_escasez'])):.1f} %) es el número con el que se dimensiona una "
+        "cobertura: dice en qué horas el mercado se sale de la banda histórica.",
+        "El abanico se genera con la fase ENSO activa si el escenario la pide: la log-normal solar engorda "
+        "su media en meses secos y la Weibull eólica del Caribe se corre a la izquierda, así que la banda "
+        "y la probabilidad de escasez suben *juntas* — que es el efecto que el objetivo c quiere medir.",
+        "gen_escenarios() → reduce_escenarios() (k-medias con pesos) → emparejar_cv() → "
+        "despacho_estocastico(), el mismo OPF del módulo aplicado a cada escenario. HN usa el precio "
+        "techo del propio OPF como penalización de desbalance; el test KS de la figura de calibración "
+        "sigue evaluando el generador crudo, así que la banda corregida y el KS no se contradicen")}
+
+
+
+# ------------------ 10.13 · refuerzos hipotéticos de la red ------------------
+
+#: Costo de obra asumido, en M COP por MW de capacidad nueva de línea (con su subestación).
+#: Es un **supuesto de orden de magnitud** —no una cifra de UPME, ISA ni del PER— que sirve para
+#: rankear y para el periodo de recuperación indicativo. Se declara en la propia figura.
+COSTO_REFUERZO_MCOP_POR_MW = 0.32
+
+#: Obras que no existen en `RAMAS_BASE` y que sí cierran anillos (se proponen como rama nueva).
+NODAL_OBRAS_ESTRUCTURALES: tuple[tuple[str, str, float, str], ...] = (
+    ("ORI", "SUR", 700.0, "Yopal–Paicol por el piedemonte: cierra el anillo oriental y saca a Yopal "
+                          "de su radialidad"),
+    ("CAR", "OCC", 900.0, "Costa–Valle por el norte: ruta alternativa del carbón del Cerrejón al Valle "
+                          "sin pasar por el corredor Centro"),
+    ("GUJ", "NOR", 800.0, "Guajira–Nordeste: evacuación larga de Termopalo de Neta y Cyclen hacia los "
+                           "ríos del nordeste"),
+)
+
+
+def red_con_refuerzo(red: dict, ref: dict) -> dict | None:
+    """Copia de la red con un refuerzo aplicado y su PTDF recalculada.
+
+    `modo="paralela"` suma capacidad al tramo existente y le baja la reactancia (segundo circuito en
+    paralelo ⇒ `x/(1+f)`); `modo="nueva"` crea la rama con `x_pu`.
+    """
+    try:
+        ram = red["ramas"].copy().reset_index(drop=True)
+    except Exception:                                                # noqa: BLE001
+        return None
+    de, ha = str(ref["de"]), str(ref["a"])
+    if de not in red["nodos"] or ha not in red["nodos"]:
+        return None
+    m = ((ram["de"].astype(str) == de) & (ram["a"].astype(str) == ha)) | \
+        ((ram["de"].astype(str) == ha) & (ram["a"].astype(str) == de))
+    nuevo = dict(red)
+    if bool(m.any()) and ref.get("modo") != "nueva":
+        k = int(np.argmax(m.to_numpy()))
+        f = float(ref["MW"]) / max(float(ram.loc[k, "MW_max"]), 1e-9)
+        nuevo["MW_antes"] = float(ram.loc[k, "MW_max"])
+        ram.loc[k, "MW_max"] = float(ram.loc[k, "MW_max"]) + float(ref["MW"])
+        ram.loc[k, "x_pu"] = float(ram.loc[k, "x_pu"]) / (1.0 + f)
+        ram.loc[k, "nombre"] = f"{ram.loc[k, 'nombre']} +{float(ref['MW']):,.0f} MW"
+    elif bool(m.any()):
+        k = int(np.argmax(m.to_numpy()))
+        nuevo["MW_antes"] = float(ram.loc[k, "MW_max"])
+        ram.loc[k, "MW_max"] = float(ref["MW"])
+        ram.loc[k, "nombre"] = f"{ram.loc[k, 'nombre']} (recapacitado)"
+    else:
+        nuevo["MW_antes"] = 0.0
+        ram = pd.concat([ram, pd.DataFrame([dict(
+            de=de, a=ha, x_pu=float(ref.get("x_pu", 0.0300)), r_pu=0.0005,
+            MW_max=float(ref["MW"]), nombre=f"nueva {de}–{ha}: {ref.get('nota', '')[:60]}")])],
+            ignore_index=True)
+    try:
+        sf, r_pu = matriz_ptdf(list(red["nodos"]), ram)
+    except Exception:                                                # noqa: BLE001
+        return None
+    nuevo["ramas"] = ram
+    nuevo["SF"] = sf
+    nuevo["r_pu"] = r_pu
+    nuevo["refuerzo"] = str(ref.get("id", ""))
+    return nuevo
+
+
+def refuerzos_candidatos(red: dict, res: dict, *, top: int = 3, pasos=(0.35, 0.75),
+                         estructurales: bool = True) -> list[dict]:
+    """El conjunto de refuerzos que se va a evaluar, generado desde **la solución**, no de un catálogo.
+
+    Toma las `top` ramas con mayor uso máximo del día (que son las que de verdad aprietan el precio en
+    esta topología y esta ventana) y propone dos niveles de capacidad extra en cada una; además suma las
+    obras nuevas de `NODAL_OBRAS_ESTRUCTURALES` que cierran anillos. Así el ranking responde a la pregunta
+    del objetivo b —¿qué inversión en red cambia la señal nodal?— en lugar de listar siempre el mismo
+    tramo simbólico.
+    """
+    ram = red["ramas"].copy().reset_index(drop=True)
+    uso = np.asarray(res["uso_rama"], dtype=float)
+    umax = np.nanmax(uso, axis=0) if uso.ndim > 1 else np.zeros(len(ram))
+    umax = np.nan_to_num(umax, nan=0.0)
+    orden = [int(k) for k in np.argsort(-umax)[: max(int(top), 0)]]
+    out: list[dict] = []
+    for k in orden:
+        r = ram.iloc[k]
+        for f in pasos:
+            mw = float(r["MW_max"]) * float(f)
+            out.append(dict(id=f"{r['de']}→{r['a']} +{100*float(f):.0f} %", de=str(r["de"]),
+                            a=str(r["a"]), modo="paralela", MW=round(mw, 0),
+                            inversion_MCOP=round(mw * COSTO_REFUERZO_MCOP_POR_MW * 0.75, 0),
+                            nota=f"segundo circuito en {r['nombre']} (uso máx. actual "
+                                 f"{100.0*float(umax[k]):.0f} %)", ramo_i=k, uso_antes=float(umax[k])))
+    if estructurales:
+        for de, ha, mw, nb in NODAL_OBRAS_ESTRUCTURALES:
+            if de not in red["nodos"] or ha not in red["nodos"]:
+                continue
+            existe = bool((((ram["de"].astype(str) == de) & (ram["a"].astype(str) == ha)) |
+                           ((ram["de"].astype(str) == ha) & (ram["a"].astype(str) == de))).any())
+            if existe:
+                continue
+            out.append(dict(id=f"nueva {de}→{ha}", de=de, a=ha, modo="nueva", MW=float(mw), x_pu=0.0300,
+                            inversion_MCOP=round(float(mw) * COSTO_REFUERZO_MCOP_POR_MW, 0), nota=nb,
+                            ramo_i=-1, uso_antes=0.0))
+    return out
+
+
+def evalua_refuerzos(cfg: dict, mdl: dict, *, top: int = 3, pasos=(0.35, 0.75)) -> pd.DataFrame:
+    """Un OPF por refuerzo candidato (y uno con el paquete completo) contra la red sin reforzar."""
+    red, res = mdl["red"], mdl["res"]
+    dem, sol, eol = mdl["perfiles_nodales"]
+    base_uso = np.asarray(res["uso_rama"], dtype=float)
+    antes = float(np.nanmax(base_uso)) if base_uso.size else 0.0
+    lam_base = float(np.mean(res["p_dem"]))
+    costo_base = float(np.mean(res["costo"]))
+    viol_base = float(np.max(res["violacion"]))
+    filas = [dict(refuerzo="— red sin reforzar", tramo=f"{len(red['nodos'])} nodos · {len(red['ramas'])} ramas",
+                  inversion_MCOP=0.0, MW_antes=float("nan"), MW_ahora=float("nan"),
+                  lambda_COP_kWh=lam_base, d_lambda_COP_kWh=0.0,
+                  horas_congestion=int(res["horas_congestion"]), viol_MW=viol_base,
+                  spread_COP_kWh=float(np.mean(res["dispersion"])),
+                  uso_max_pct=100.0 * antes, corte_GWh=float(np.sum(res["corte"]) / 1000.0),
+                  recorte_GWh=float(np.sum(res["recorte_MWh"]) / 1000.0),
+                  co2_t=float(np.sum(res["co2_t"])),
+                  renta_congestion_MCOP_h=float(np.mean(res["renta_congestion"]) / 1e6),
+                  costo_MCOP_h=float(np.mean(res["costo"]) / 1e6),
+                  ahorro_MCOP_dia=0.0, payback_anios=float("nan"), converge=bool(res["converged"]),
+                  nota="topología base, sin obras", nota_error="",
+                  ramas_n=int(len(red["ramas"])))]
+    casos = refuerzos_candidatos(red, res, top=top, pasos=pasos)
+    if casos:
+        casos.append(dict(id="🧺 paquete completo", de=str(casos[0]["de"]), a=str(casos[0]["a"]),
+                          modo="canasta", MW=0.0,
+                          inversion_MCOP=float(sum(float(c["inversion_MCOP"]) for c in casos)),
+                          nota="todos los candidatos anteriores a la vez: dice si el último todavía "
+                               "compra algo", ramo_i=-1, uso_antes=0.0))
+    for ref in casos:
+        try:
+            r2 = dict(red)
+            if ref["modo"] == "canasta":
+                for sub in [c for c in casos if c.get("modo") != "canasta"]:
+                    rr = red_con_refuerzo(r2, sub)
+                    if rr is not None:
+                        r2 = rr
+            else:
+                rr = red_con_refuerzo(red, ref)
+                if rr is None:
+                    raise RuntimeError("la red con el refuerzo no es resoluble (PTDF singular)")
+                r2 = rr
+            od = opf_nodal(r2, demanda=dem, solar=sol, eolica=eol, nivel_cop_kwh=mdl["nivel_modelo"],
+                           kappa_hibrido=float(cfg["kappa"]), flex_frac=float(cfg["flex"]) / 100.0,
+                           flex_gatillo_cop=float(cfg["gatillo"]), perdas_iter=int(cfg["perdas_iter"]),
+                           almacenamiento=mdl.get("almacenamiento"))
+            u2 = np.asarray(od["uso_rama"], dtype=float)
+            ahor_dia = float(np.mean(od["costo"]) - costo_base) * 24.0     # COP/día; negativo = ahorro
+            ahorro_MCOP_dia = -ahor_dia / 1e6
+            ahorro_anio = ahorro_MCOP_dia * 365.0                            # M COP/año
+            inv = float(ref["inversion_MCOP"])
+            filas.append(dict(
+                refuerzo=str(ref["id"]),
+                tramo=(f"{ref['de']}→{ref['a']} +{float(ref['MW']):,.0f} MW ({ref['modo']})"
+                       if ref["modo"] != "canasta" else f"{len(casos)-1} obras a la vez"),
+                inversion_MCOP=inv,
+                MW_antes=float(r2.get("MW_antes", float("nan"))),
+                MW_ahora=(float(np.max(r2["ramas"]["MW_max"])) if "MW_max" in r2["ramas"] else float("nan")),
+                lambda_COP_kWh=float(np.mean(od["p_dem"])),
+                d_lambda_COP_kWh=float(np.mean(od["p_dem"])) - lam_base,
+                horas_congestion=int(od["horas_congestion"]),
+                viol_MW=float(np.max(od["violacion"])),
+                d_viol_MW=float(np.max(od["violacion"])) - viol_base,
+                spread_COP_kWh=float(np.mean(od["dispersion"])),
+                uso_max_pct=100.0 * float(np.nanmax(u2)) if u2.size else float("nan"),
+                corte_GWh=float(np.sum(od["corte"]) / 1000.0),
+                recorte_GWh=float(np.sum(od["recorte_MWh"]) / 1000.0),
+                co2_t=float(np.sum(od["co2_t"])),
+                renta_congestion_MCOP_h=float(np.mean(od["renta_congestion"]) / 1e6),
+                costo_MCOP_h=float(np.mean(od["costo"]) / 1e6),
+                ahorro_MCOP_dia=ahorro_MCOP_dia,
+                payback_anios=(inv / ahorro_anio if ahorro_anio > 1.0 else float("nan")),
+                converge=bool(od["converged"]),
+                nota=str(ref.get("nota", "")),
+                nota_error="", ramas_n=int(len(r2["ramas"]))))
+        except Exception as exc:                                             # noqa: BLE001
+            filas.append(dict(refuerzo=str(ref.get("id", "?")), tramo="no se pudo evaluar",
+                              inversion_MCOP=float(ref.get("inversion_MCOP", 0.0)),
+                              horas_congestion=-1, viol_MW=float("nan"), d_viol_MW=float("nan"),
+                              lambda_COP_kWh=float("nan"), d_lambda_COP_kWh=float("nan"),
+                              spread_COP_kWh=float("nan"), uso_max_pct=float("nan"),
+                              corte_GWh=float("nan"), recorte_GWh=float("nan"), co2_t=float("nan"),
+                              renta_congestion_MCOP_h=float("nan"), costo_MCOP_h=float("nan"),
+                              ahorro_MCOP_dia=float("nan"), payback_anios=float("nan"),
+                              converge=False, nota_error=f"{type(exc).__name__}: {str(exc)[:140]}"))
+    return pd.DataFrame(filas)
+
+
+def fig_nodal_refuerzos(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
+    """Tabla y barras del conjunto de refuerzos hipotéticos, cada uno con su propio OPF."""
+    df = mdl.get("ref")
+    if not isinstance(df, pd.DataFrame) or df.empty or len(df) < 2:
+        return None
+    cand = df.iloc[1:].copy().reset_index(drop=True)
+    nombres = [str(v) for v in cand["refuerzo"]]
+    fig = _fig(ctx, 470)
+    fig.add_trace(go.Bar(x=nombres, y=np.clip(cand["horas_congestion"].to_numpy(dtype=float), 0, None),
+                         name="horas congestionadas (0-24)", marker_color=ROJO, xaxis="x", yaxis="y",
+                         text=[f"{int(v)}" for v in np.clip(cand["horas_congestion"], 0, None)],
+                         textposition="outside",
+                         hovertemplate="%{x}<br>%{y} h congestionadas<extra></extra>"))
+    fig.add_trace(go.Scatter(x=nombres, y=cand["uso_max_pct"].to_numpy(dtype=float),
+                             name="uso máximo de la rama crítica (%)", mode="lines+markers",
+                             line=dict(color=AZUL, width=1.6, dash="dot"), marker=dict(size=8),
+                             xaxis="x", yaxis="y",
+                             hovertemplate="%{x}<br>uso máx. %{y:.0f} %<extra></extra>"))
+    fig.add_trace(go.Bar(x=nombres, y=cand["ahorro_MCOP_dia"].to_numpy(dtype=float),
+                         name="ahorro de costo (M COP/día)", marker_color=VERDE, xaxis="x2", yaxis="y2",
+                         text=[f"{v:+,.0f}" for v in cand["ahorro_MCOP_dia"].fillna(0.0)],
+                         textposition="outside",
+                         hovertemplate="%{x}<br>%{y:+,.1f} M COP/día<extra></extra>"))
+    for kk, nom_c in enumerate(nombres):
+        pb = cand.loc[kk, "payback_anios"]
+        txt = ("no paga" if not (isinstance(pb, float) and np.isfinite(pb)) else f"{float(pb):,.0f} a")
+        fig.add_annotation(x=nom_c, y=float(np.nan_to_num(cand.loc[kk, "ahorro_MCOP_dia"])), yshift=24,
+                           text=txt,
+                           showarrow=False, font=dict(size=9, color=GRIS), xref="x2", yref="y2")
+    fig.update_layout(grid=dict(rows=1, columns=2, pattern="independent"),
+                      xaxis=dict(title=None, tickangle=-28),
+                      yaxis=dict(title="horas congestionadas · uso máx. (%)", range=[0, 118]),
+                      xaxis2=dict(title=None, tickangle=-28),
+                      yaxis2=dict(title="ahorro de costo del día (M COP)"),
+                      legend=dict(orientation="h", y=1.13, x=0), hovermode="closest",
+                      annotations=[dict(
+                          text="<i>ambos paneles usan la misma red y la misma curva de oferta calibrada: "
+                               "lo único que cambia es la capacidad del tramo del título de la barra.</i>",
+                          xref="paper", yref="paper", x=0.0, y=-0.30, showarrow=False,
+                          font=dict(size=10, color=GRIS))])
+    cols = ["refuerzo", "tramo", "horas_congestion", "uso_max_pct", "viol_MW", "d_viol_MW",
+            "spread_COP_kWh", "d_lambda_COP_kWh", "corte_GWh", "recorte_GWh", "co2_t",
+            "renta_congestion_MCOP_h", "ahorro_MCOP_dia", "inversion_MCOP", "payback_anios",
+            "converge", "nota_error"]
+    st.dataframe(df[[c for c in cols if c in df.columns]].round(2), use_container_width=True,
+                 hide_index=True, height=min(430, 90 + 33 * len(df)))
+    ok = cand[cand["ahorro_MCOP_dia"].notna()]
+    mejor = ok.loc[ok["ahorro_MCOP_dia"].idxmax()] if (not ok.empty and
+                                                       float(ok["ahorro_MCOP_dia"].max()) > 0) else None
+    sin = df.iloc[0]
+    st.markdown(
+        "### Cómo se lee"
+        f"\n\n1. **Primera fila = la red sin reforzar**: {int(sin['horas_congestion'])} h congestionadas, "
+        f"uso máximo {float(sin['uso_max_pct']):.0f} %, violación {float(sin['viol_MW']):,.0f} MW y "
+        f"λ medio {float(sin['lambda_COP_kWh']):,.1f} COP/kWh."
+        "\n2. Cada candidato se arma **sobre la rama más cargada de esta misma solución** (las ramas "
+        "críticas cambian si usted cambia `Capacidad de las líneas`, la topología o el escenario) y se "
+        "liquida con un OPF completo: el Δ que ve es el efecto de esa obra, no una correlación."
+        + (f"\n3. El mejor del set es **{mejor['refuerzo']}**: {float(mejor['ahorro_MCOP_dia']):+,.0f} "
+           f"M COP/día y pasa de {int(sin['horas_congestion'])} a {int(mejor['horas_congestion'])} h "
+           f"congestionadas (inversión supuesta {float(mejor['inversion_MCOP']):,.0f} M COP → "
+           f"recuperación {float(mejor['payback_anios']):,.0f} años)."
+           if mejor is not None else
+           "\n3. Ningún candidato del set baja el costo con esta ventana y esta topología: la congestión "
+           "que queda **no es removible** con estos tramos, se alivia con demanda interrumpible, con "
+           "almacenamiento bien ubicado o con generación en el nodo caro."))
+    st.caption(
+        f"Supuestos declarados: `COSTO_REFUERZO_MCOP_POR_MW = {COSTO_REFUERZO_MCOP_POR_MW}` M COP por MW "
+        "nuevo de línea (orden de magnitud de obra con subestación, no una cifra oficial del Plan de "
+        "Expansión de Referencia); un segundo circuito se modela bajando la reactancia en "
+        "`1/(1+f)`; el payback anualiza el ahorro del día tipo de la ventana sin tasa de descuento ni "
+        "valor de confiabilidad; el refuerzo no re-optimiza dónde se construye generación ni "
+        "re-compromete unidades. Es análisis de señal de precio, no un plan de obras.")
+    return {"fig": fig, "leyenda": _leyenda(
+        "Refuerzos hipotéticos: qué obra mueve la señal nodal",
+        f"{len(cand)} candidatos (capacidad extra en las ramas más cargadas de esta solución + obras nuevas "
+        "que cierran anillos), cada uno liquidado con su propio OPF con pérdidas y congestión, más el "
+        "paquete completo. Izquierda: horas congestionadas y uso máximo de la rama crítica. Derecha: "
+        "ahorro de costo del día con el periodo de recuperación encima de cada barra.",
+        "La lectura útil no es cuál baja más el precio —con red holgada todos bajan casi nada—, sino "
+        "**cuál convierte congestión en holgura por menos plata** y cuáles no. Si el paquete completo rinde "
+        "menos por MW que el primer refuerzo, la conclusión es de rendimientos decrecientes de la inversión "
+        "en red, y eso es exactamente la evidencia que pide el objetivo b sobre priorización de obras.",
+        "Con el escenario seco (🌊 o el bloque de combinaciones) la demanda y el despacho térmico suben, las "
+        "ramas críticas cambian y los mismos candidatos dan otro ranking: el refuerzo rentable en El Niño "
+        "puede ser marginal en un año normal, por eso la lista se genera desde la solución y no se fija.",
+        "refuerzos_candidatos() + red_con_refuerzo() (recalcula matriz_ptdf) + opf_nodal() por candidato; "
+        "inversión y payback con COSTO_REFUERZO_MCOP_POR_MW como supuesto declarado")
+}
+
+
+def red_gran(mdl: dict) -> str:
+    """Etiqueta de granularidad de la red usada en las leyendas."""
+    return str(mdl["red"].get("granularidad", "?"))
+
+
+
 
 
 def fig_nodal_penetra(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10698,7 +11894,7 @@ def fig_nodal_penetra(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "recorte renovable, horas congestionadas, violación, CO₂ y renta de congestión. "
         f"Nota: {str(mdl.get('sens_nota', ''))[:60] or 'sin errores'}",
         "Si la dispersión y el recorte suben más rápido que el precio medio, el valor del precio nodal "
-        "crece con la penetración: es la conclusión operativa de la tesis y la que justifica estudiar la "
+        "crece con la penetración: es la conclusión operativa que justifica estudiar la "
         "transición ahora y no en 2040.",
         "El barrido no usa fases ENSO explícitas, pero el mismo mecanismo explica por qué en El Niño el "
         "sol vale más: cuando la hidráulica cede, la generación variable desplaza térmica cara y el "
@@ -10737,6 +11933,29 @@ def fig_nodal_ior(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
                    f"η = {float(ior.get('eta', float('nan'))):.3f} (cruda "
                    f"{float(ior.get('eta_bruta', float('nan'))):.3f}, n={int(ior.get('n_elasticidad', 0))}): "
                    f"{str(ior.get('regimen'))}")
+    st.markdown(f"""
+**Qué mide cada magnitud de esta figura (y qué puede mover usted).**
+
+- **IOR (renta inframarginal)** — (precio de bolsa − costo de oportunidad del recurso) sobre el precio, en
+%. Está medido en los datos reales de XM de la ventana, no simulado: media {float(ior['ior_medio']):,.2f} %,
+p95 {float(ior['ior_p95']):,.2f} %, {int(ior.get('dias_bandera', 0))} de {int(ior.get('dias', 0))} días por
+encima del umbral. Es la evidencia empírica de que el parque inframarginal cobra escasez: si el modelo
+reproduce ese orden de magnitud, el recargo de «Bertrand/Cournot» no es un invento del ejercicio.
+- **HHI** — suma de las cuotas al cuadrado ({int(ior['hhi']):,} sobre 10.000; máximo por nodo
+{int(ior['hhi_max_nodo']):,}). Dice *dónde* se puede ejercer poder, no cuánto: un nodo con HHI bajo y ramas
+saturadas también separa precios, pero por red.
+- **Lerner observado** — (p − CMg)/p del día medio: {float(ior['lerner']):,.3f}. Con esta cifra se compara
+el Lerner *teórico* de Cournot, no con el `Markup (%)` que usted pida en la barra lateral.
+- **η (elasticidad)** — {float(ior['eta']):,.3f} corregida del ciclo diario (la cruda, sin corregir, da
+{float(ior['eta_bruta']):,.3f}: es un artefacto de comparar horas distintas). Entra como denominador del
+recargo de Cournot, así que es la palanca que más mueve el markup teórico.
+- **Umbral IOR** — {float(ior['umbral_ior']):,.1f} COP/kWh: solo clasifica como «día con escasez» los cuyo
+IOR lo supera; bajarlo aumenta los días bandera sin tocar el modelo. Es un corte declarado de esta app, no
+un criterio de la CREG.
+
+Si en lugar de cifras aparece la nota de no disponibilidad, es que la ventana no tiene
+`cmd_planta`/`PrecBolsNaci` completos: el IOR se mide sobre el dato, no se estima.
+""")
     return {"fig": fig, "leyenda": _leyenda(
         "Poder de mercado medido, no supuesto",
         f"IOR diario con las dos columnas de XM (`Precio_Bolsa_Dia_COP_kWh` vs "
@@ -10747,13 +11966,13 @@ def fig_nodal_ior(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         f"{100*float(ior['ior_medio']):.1f} %, máximo {100*float(ior['ior_max']):.1f} %). Con HHI "
         f"{float(ior.get('hhi', float('nan'))):,.0f} y un nodo con HHI "
         f"{float(ior.get('hhi_max_nodo', float('nan'))):,.0f}, el mercado ya está concentrado: la "
-        "pregunta de la tesis no es *si* hay poder de mercado, sino cuánto se puede ejercer bajo cada "
+        "pregunta no es *si* hay poder de mercado, sino cuánto se puede ejercer bajo cada "
         "regla de liquidación (figura siguiente).",
         "El IOR sube en seco: la comparación por fase ENSO en `impacto` da precio ponderado "
         f"{float((ior.get('precio_pond_fases') or {}).get('El_Nino', float('nan'))):.0f} COP/kWh en El "
         f"Niño contra {float((ior.get('precio_pond_fases') or {}).get('La_Nina', float('nan'))):.0f} en "
         "La Niña — el mismo agente tiene más margen de oferta en meses secos.",
-        "§2.5.1 · IOR de bolsa/CMD + HHI real · η con fijos horarios")}
+        " · IOR de bolsa/CMD + HHI real · η con fijos horarios")}
 
 
 def fig_nodal_mec(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10774,9 +11993,71 @@ def fig_nodal_mec(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
                              line=dict(color=ROJO, width=1.8, dash="dash"), mode="lines+markers"))
     fig.add_trace(go.Bar(x=h, y=np.asarray(cb["recargo_cournot_pct"], dtype=float),
                          name="Recargo Cournot (%)", yaxis="y2", marker_color="rgba(146,64,197,0.35)"))
-    fig.update_layout(xaxis=dict(title="Hora", dtick=2), yaxis_title="COP/kWh",
-                      yaxis2=dict(title="% sobre el precio de competencia", overlaying="y", side="right",
-                                  showgrid=False), hovermode="x unified")
+    fig.data = ()
+    h2 = h
+    fig.add_trace(go.Scatter(x=h2, y=np.asarray(cb["mg_COP_kWh"], dtype=float),
+                             name="CMg del residuo (piso teórico)",
+                             line=dict(color=GRIS, width=1.6, dash="dot"), xaxis="x", yaxis="y"))
+    fig.add_trace(go.Scatter(x=h2, y=np.asarray(cb["p_competencia"], dtype=float),
+                             name="λ del OPF (lo que paga hoy)", line=dict(color=AZUL, width=2.6),
+                             mode="lines+markers", marker=dict(size=5), xaxis="x", yaxis="y"))
+    fig.add_trace(go.Scatter(x=h2, y=np.asarray(cb["p_bertrand"], dtype=float),
+                             name="Bertrand (precio = CMg)", line=dict(color=VERDE, width=1.6, dash="dot"),
+                             xaxis="x", yaxis="y"))
+    fig.add_trace(go.Scatter(x=h2, y=np.asarray(cb["p_cournot"], dtype=float),
+                             name="Cournot (recargo de Lerner)", line=dict(color=AMBAR, width=2.4),
+                             mode="lines+markers", marker=dict(size=5), xaxis="x", yaxis="y"))
+    fig.add_trace(go.Scatter(x=h2, y=np.asarray(cb["p_monopolio"], dtype=float),
+                             name="Monopolio (tope de escasez)", line=dict(color=ROJO, width=1.8, dash="dash"),
+                             xaxis="x", yaxis="y"))
+    fig.add_trace(go.Bar(x=h2, y=np.asarray(cb["recargo_cournot_pct"], dtype=float),
+                         name="recargo Cournot sobre CMg (%)", marker_color="rgba(249,168,37,0.55)",
+                         xaxis="x2", yaxis="y2"))
+    fig.add_trace(go.Scatter(x=h2, y=np.asarray(cb["lerner_cournot"], dtype=float),
+                             name="Lerner de Cournot", mode="lines+markers",
+                             line=dict(color="#6a1b9a", width=1.8), marker=dict(size=5),
+                             yaxis="y3", xaxis="x2"))
+    fig.add_trace(go.Scatter(x=h2, y=np.asarray(cb["s_top_pct"], dtype=float) / 100.0,
+                             name="cuota del agente top (×100 en este eje)", mode="lines",
+                             line=dict(color=GRIS, width=1.2, dash="dot"), yaxis="y2", xaxis="x2"))
+    fig.update_layout(
+        grid=dict(rows=1, columns=2, pattern="independent"), height=520,
+        xaxis=dict(title="Hora · qué precio pagaría cada régimen", dtick=3),
+        yaxis=dict(title="COP/kWh"),
+        xaxis2=dict(title="Hora · recargo (%) y poder de mercado", dtick=3, matches="x"),
+        yaxis2=dict(title="recargo (%) · cuota ×100"),
+        yaxis3=dict(title="Lerner", overlaying="y", side="right", showgrid=False),
+        legend=dict(orientation="h", y=1.19, x=0, groupclick="toggleitem", font=dict(size=10)),
+        hovermode="x unified")
+    st.markdown("""
+**Qué es cada régimen del panel izquierdo** —todos sobre la *misma* demanda residual (demanda menos la
+variable): lo único que cambia es la conducta del despacho, no el sistema.
+
+- **CMg del residuo (gris punteada)** — costo marginal de la última MW despachada. Piso teórico: ningún
+régimen racional lo sostiene por debajo de forma prolongada.
+- **λ del OPF (azul)** — lo que el mercado real pagaría hoy en este modelo. Si la azul se levanta sobre la
+gris, esa diferencia **no** es conducta estratégica sino congestión o escasez de oferta: los regímenes de
+esta figura no la capturan (por eso el λ del OPF puede quedar por encima de todos).
+- **Bertrand (verde)** — empresas idénticas compitiendo por el despacho → precio = CMg. Es el control: si
+Bertrand y Cournot coinciden, la concentración no está mordiendo el precio en esa hora.
+- **Cournot (ámbar)** — cada agente decide sus MW y cobra el recargo de Lerner `s/|ε|` sobre el CMg, con la
+cuota real del agente top. Es el escenario de poder de mercado.
+- **Monopolio (rojo)** — el techo de la escala (precio de escasez de la hora). No es una predicción: es la
+cota contra la que se comprueba si los otros dos tienen sentido.
+
+**Panel derecho** — barras ámbar: recargo de Cournot sobre el CMg (%). Línea morada: índice de Lerner
+`L = (p − CMg)/p` del equilibrio (eje derecho). Línea gris punteada: cuota del agente top ×100 para que
+quepa en el mismo eje. Recargo alto **y** Lerner alto en las mismas horas → ahí se paga la concentración;
+recargo alto con Lerner plano → el precio lo mueve la red, no la conducta.
+
+**Qué mueve cada control** — `ε (elasticidad de la demanda residual)` entra al denominador del recargo de
+Cournot: con |ε| < 1 el recargo teórico se dispara y se limita al precio de escasez (por eso la roja queda
+plana en varias horas). `Markup (%)` y `Retiro de oferta` actúan sobre el OPF de la pestaña, no sobre este
+juego: por eso esta figura y la sensibilidad al markup no cuadran al céntimo. La
+`Curvatura de la oferta (c₂)` sí afecta a las dos: a más curvatura, menos salto de precio por MW retirado y
+menor recargo.
+""")
+
     res, rb = mdl["res"], mdl["res_base"]
     d_lam = 100.0 * (float(np.mean(res["lam"])) / max(float(np.mean(rb["lam"])), 1e-9) - 1.0)
     _es = mdl.get("estrato") or {}
@@ -10804,7 +12085,7 @@ def fig_nodal_mec(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         f"En esta ventana el markup pedido ({cfg['markup_pct']:.0f} %) mueve el precio medio "
         f"{d_lam:+.1f} % y la dispersión a {float(np.mean(res['dispersion'])):,.1f} COP/kWh: en horas "
         "congestionadas el recargo se concentra en un nodo, no se reparte.",
-        "§2.5.1 · cournot_bertrand() + `markup`/`withholding` del OPF")}
+        " · cournot_bertrand() + `markup`/`withholding` del OPF")}
 
 
 def fig_nodal_var(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10849,7 +12130,7 @@ def fig_nodal_var(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
             use_container_width=True, key=_clave_fig("nodal-kupiec"))
     kup = bt.attrs.get("kupiec", {}) if isinstance(bt, pd.DataFrame) else {}
     return {"fig": fig, "leyenda": _leyenda(
-        "Volatilidad condicional y riesgo de mercado (Eq. 2-22/2-23)",
+        "Volatilidad condicional y riesgo de mercado ",
         f"GARCH(1,1) estimado por máxima verosimilitud sobre {int(g['n'])} retornos horarios *reales* "
         f"de XM: ω={float(g['omega']):.2e}, α={float(g['alfa']):.3f}, β={float(g['beta']):.3f}, "
         f"persistencia {float(g['persistencia']):.3f} (vida media de la volatilidad "
@@ -10864,11 +12145,11 @@ def fig_nodal_var(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "La persistencia 0,98 es el número que importa para El Niño: un choque de volatilidad tarda "
         "~3 días en disiparse, así que una sequía que dura meses *encadena* picos y el VaR diario "
         "subestima el riesgo de posición larga.",
-        "§2.5.2 · garch11 (rejilla + Newton, sin scipy) · alfa " + f"{cfg['alfa']:.3f}")}
+        " · garch11 (rejilla + Newton, sin scipy) · alfa " + f"{cfg['alfa']:.3f}")}
 
 
 def fig_nodal_cov(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
-    """Cobertura de mínima varianza (Eq. 2-24) entre el precio del modelo y el futuro."""
+    """Cobertura de mínima varianza entre el precio del modelo y el futuro."""
     cv = mdl.get("cov") or {}
     if not isinstance(cv, dict) or not cv.get("disponible"):
         return None
@@ -10887,7 +12168,7 @@ def fig_nodal_cov(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
     fig.update_layout(xaxis_title="Razón de cobertura h (unidades de futuro por unidad de exposición)",
                       yaxis_title="desviación estándar de la posición (COP/kWh)")
     return {"fig": fig, "leyenda": _leyenda(
-        "Cuánto futuro comprar (Eq. 2-24)",
+        "Cuánto futuro comprar ",
         f"Correlación ρ = {float(cv['rho']):.3f} entre el retorno del precio del modelo en el nodo y el "
         f"de la serie uninodal de XM; σ_S = {float(cv['sigma_spot']):.4f}, σ_F = "
         f"{float(cv['sigma_futuro']):.4f}; óptimo h* = ρσ_S/σ_F = {float(cv['h_optimo']):.3f} "
@@ -10896,11 +12177,11 @@ def fig_nodal_cov(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         f"(σ² {float(cv['var_sin']):.2e} → {float(cv['var_cubierta']):.2e}) y deja un ingreso medio de "
         f"{float(cv['media_cubierta']):.4f} por MWh. Con ρ = {float(cv['rho']):.2f} el futuro 'casi "
         "cubierto' deja un residual grande: el riesgo locacional **no** se cubre con un producto "
-        "nacional, que es exactamente el argumento de la tesis para tener mercado nodal con derechos de "
+        "nacional, que es el argumento clásico para tener mercado nodal con derechos de "
         "congestión negociables.",
         "La ventana es seca y corta (31 días); en El Niño ρ sube pero σ_S también, así que h* no es "
         "constante: un coberturista debe re-estimar cada semana con `garch11` en lugar de fijar h.",
-        "§2.5.3 · cobertura_min_var()")}
+        " · cobertura_min_var()")}
 
 
 def fig_nodal_ems(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
@@ -10953,14 +12234,14 @@ def fig_nodal_ems(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         f"{float(em.get('violacion_despues', 0.0)):,.0f} MW; recorte "
         f"{float(em.get('recorte_antes_GWh', 0.0)):,.1f} → {float(em.get('recorte_despues_GWh', 0.0)):,.1f} GWh.")
     return {"fig": fig, "leyenda": _leyenda(
-        "Almacenamiento con precio nodal (§2.3 y objetivo e)",
+        "Almacenamiento con precio nodal ",
         "Programa óptimo del EMS (water-filling bajo el vector de precios, con η, Pmin de reserva y "
         "máscaras por modo) contra el precio del sistema. Carga donde el LMP es bajo —en la ventana "
         "solar de media mañana— y descarga en el pico 18-21 h; el SOC cierra el día donde empezó.",
         "La línea de texto compara el mismo activo bajo las dos reglas: la diferencia es lo que vale la "
         "**señal locacional** para un inversor de baterías. Si el valor cae con `alivio_congestion` o la "
         "violación de ramas sube (como le pasa al bombeo mal sentado), el almacenamiento no es un "
-        "sustituto del refuerzo: la tesis lo dice y aquí se ve.",
+        "sustituto del refuerzo de red: aquí se ve.",
         "En El Niño la brecha pico-valle se abre (más térmica cara en la tarde), así que el arbitraje "
         "rinde más: la batería es un activo anticíclico frente a la sequía, y su valoración con precio "
         "uninodal la subestima sistemáticamente.",
@@ -10974,6 +12255,20 @@ def fig_nodal_ql(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
     q = mdl.get("ql") or {}
     if not isinstance(q, dict) or not q.get("disponible"):
         return None
+    st.markdown(NODAL_REFUERZO_TEXTO)
+    st.markdown(
+        f"**Hiperparámetros de esta corrida:** {int(q['n_agentes'])} agentes · "
+        f"{int(q['n_acciones'])} acciones por agente en {int(q['n_estados'])} estados · ε-greedy inicial "
+        f"{float(q['eps_inicial']):.2f} · {int(cfg['episodios_rl'])} episodios · resolución del despacho "
+        f"{float(q['resolucion_MW']):,.0f} MW · hora del juego {int(q['hora'])}. "
+        f"Balance: objetivo {float(q['objetivo_MW']):,.0f} MW, el Q-learning sirvió "
+        f"{float(q['suma_ql']):,.0f} MW (déficit {float(q['deficit_MW']):,.0f} MW) y el mérito-order "
+        f"{float(q['suma_exact']):,.0f} MW. Precio: λ exacto {float(q['lam_exacto_COP_kWh']):,.0f} vs "
+        f"λ aprendido {float(q['lam_final_COP_kWh']):,.0f} COP/kWh "
+        f"({float(q['brecha_lambda_pct']):+.1f} %), con la política en la banda "
+        f"[{float(q['lam_cola_min']):,.0f}, {float(q['lam_cola_max']):,.0f}] y factibilidad "
+        f"{'sí' if q.get('factible') else 'no'}. Si el déficit es alto, la convergencia está todavía en la fase "
+        "exploratoria: suba `Episodios del Q-learning` antes de leer la brecha como resultado.")
     his = np.asarray(q.get("historia", np.zeros((0, 4))), dtype=float)
     fig = _fig(ctx, 540)
     if his.size:
@@ -11018,7 +12313,7 @@ def fig_nodal_ql(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         f"El despacho se aprende sin coordinador (hora {int(q['hora'])+1})",
         f"{q['n_agentes']} agentes con Q-learning sobre {q['n_estados']} bandas de precio y "
         f"{q['n_acciones']} niveles de potencia, {len(his)} episodios. El precio es el estado y se "
-        "actualiza con el mismo ascenso dual de la Eq. 2-20 que usa el OPF, así que el mercado cierra "
+        "actualiza con el mismo ascenso dual que usa el OPF, así que el mercado cierra "
         "solo.",
         f"λ de la política {float(q['lam_politica_COP_kWh']):,.0f} vs exacto "
         f"{float(q['lam_exacto_COP_kWh']):,.0f} ({float(q['brecha_lambda_pct']):+.1f} %), costo "
@@ -11031,15 +12326,27 @@ def fig_nodal_ql(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "de recurso imperfectos: un agente que aprende por refuerzo no necesita que el coordinador "
         "conozca sus curvas de costo, y eso es lo que hace viable un mercado con miles de recursos "
         "distribuidos.",
-        "§2.7.2 · qlearning_despacho() · semilla " + str(cfg["semilla"]))}
+        " · qlearning_despacho() · semilla " + str(cfg["semilla"]))}
 
 
 def fig_nodal_ap(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
-    """Mark-up aprendido por regla: la hipótesis central de la tesis, en un número."""
+    """Mark-up aprendido por regla: lo que el aprendizaje por refuerzo cambia en el número."""
     ap = mdl.get("ap") or {}
     if not isinstance(ap, dict) or not ap.get("reglas"):
         return None
     reglas = ap["reglas"]
+    st.markdown(
+        f"**Aprendizaje por regla — hiperparámetros:** acciones de mark-up "
+        f"{', '.join(f'{100.0*float(a):.0f} %' for a in np.atleast_1d(np.asarray(ap.get('acciones', []), dtype=float)))}"
+        f" · ε-greedy 0,30 · {int(cfg['episodios_ap'])} episodios por regla · "
+        f"{len(list(cfg['ap_horas']))} hora(s) de juego ({', '.join(str(int(v)) for v in cfg['ap_horas'])}) · "
+        f"{len(reglas)} reglas de liquidación comparadas: {', '.join(reglas)}. "
+        "La política aprendida es **el mismo OPF re-resuelto por episodio**: lo único que aprende el agente "
+        "es cuánto mark-up ponerle a su curva de oferta. Con pocos episodios la traza no converge y el "
+        "mark-up de equilibrio sale sesgado a la baja; con demasiados, se planta en la última acción de la "
+        "rejilla. Si `mark_up_medio` sale 0,00 en una regla, no es que el modelo niegue el poder de "
+        "mercado: es que en esa regla el agente ya no cobra el desvío en todo el sistema y no le conviene "
+        "desviarse.")
     fig = _fig(ctx, 460)
     ks = list(reglas.keys())
     fig.add_trace(go.Bar(x=ks, y=[100.0 * float(np.mean(reglas[k]["mark_up_por_hora"])) for k in ks],
@@ -11063,7 +12370,7 @@ def fig_nodal_ap(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
                f"{100.0*d/max(abs(u), 1e-9):+.0f} % relativo) con {int(cfg['episodios_ap'])} episodios "
                f"por regla en las horas {', '.join(str(int(x)+1) for x in cfg['ap_horas'])}.")
     return {"fig": fig, "leyenda": _leyenda(
-        "Aprender a ejercer poder de mercado bajo cada regla (hipótesis central)",
+        "Aprender a ejercer poder de mercado bajo cada regla (objetivo c)",
         "Cada escenario es un juego repetido: los agentes suben o bajan su oferta por hora, reciben su "
         "beneficio del OPF completo (que re-despacha el sistema y fija los precios) y aprenden con "
         "Q-learning. La barra es el mark-up con el que convergen.",
@@ -11075,22 +12382,26 @@ def fig_nodal_ap(ctx: dict, cfg: dict, mdl: dict) -> dict | None:
         "El efecto depende de la congestión, y la congestión depende del régimen hidrológico: en El "
         "Niño hay más horas congestionadas → más horas en las que el markup sí paga → el descuento del "
         "régimen nodal se reduce. Correr la figura sobre una ventana húmeda y una seca es la prueba "
-        "empírica que falta en la propuesta.",
-        "§2.5.1 + §2.7.2 · aprendizaje_regla() · " + str(ap.get("nota", ""))[:110])}
+        "empírica que faltaba en el planteamiento.",
+        " + · aprendizaje_regla() · " + str(ap.get("nota", ""))[:110])}
 
 
 # ============================ registro y pestaña ==============================
 
 FIGURES_NODAL: dict[str, tuple] = {
     # clave → (función, subgrupo, título)
-    "nodal_red":      (fig_nodal_red,      "red", "Topología del modelo y uso de las ramas"),
-    "nodal_cap":      (fig_nodal_cap,      "red", "CEN por nodo y tecnología (y qué se completó)"),
+    "nodal_combinaciones": (fig_nodal_combinaciones, "sintesis",
+                             "Tres combinaciones para ver el impacto de la señal nodal"),
+    "nodal_red":      (fig_nodal_red,      "red", "Topología del modelo y uso de las ramas · regiones y criterio"),
+    "nodal_cap":      (fig_nodal_cap,      "red", "CEN por nodo y tecnología"),
     "nodal_calib":    (fig_nodal_calib,    "red", "Calibración de la oferta contra el precio de bolsa XM"),
     "nodal_lmp":      (fig_nodal_lmp,      "precios", "Mapa de calor del precio marginal por nodo y hora"),
     "nodal_spread":   (fig_nodal_spread,   "precios", "Banda de dispersión nodal y renta de congestión"),
-    "nodal_descomp":  (fig_nodal_descomp,  "precios", "Descomposición del LMP (Eq. 2-21)"),
+    "nodal_descomp":  (fig_nodal_descomp,  "precios", "Descomposición del LMP: energía + pérdidas + congestión"),
     "nodal_valida":   (fig_nodal_valida,   "precios", "Validación: λ dual vs ∂Costo/∂D por diferencias finitas"),
     "nodal_cong":     (fig_nodal_cong,     "red", "Congestión por rama, pérdidas y violación"),
+    "nodal_refuerzos": (fig_nodal_refuerzos, "red",
+                        "Refuerzos hipotéticos de la red: un OPF por candidato"),
     "nodal_flujos":   (fig_nodal_flujos,   "red", "Flujos por rama vs su límite y su renta"),
     "nodal_desp":     (fig_nodal_desp,     "despacho", "Despacho óptimo, recorte renovable y corte flexible"),
     "nodal_nodo":     (fig_nodal_nodo,     "despacho", "Nodo caro vs nodo barato: balance y precio"),
@@ -11099,11 +12410,13 @@ FIGURES_NODAL: dict[str, tuple] = {
     "nodal_flex":     (fig_nodal_flex,     "reglas", "Desconexión voluntaria de la demanda (objetivo a)"),
     "nodal_reglas":   (fig_nodal_reglas,   "reglas", "Uninodal · zonal · híbrido · nodal (KPIs de liquidación)"),
     "nodal_esc":      (fig_nodal_esc,      "estocastico", "Abanico de escenarios estocásticos y reducción"),
+    "nodal_esto":     (fig_nodal_esto,     "estocastico",
+                         "Segunda etapa estocástica: escenarios despachados, bandas y VSS"),
     "nodal_penetra":  (fig_nodal_penetra,  "estocastico", "Sensibilidad a la penetración renovable"),
     "nodal_ior":      (fig_nodal_ior,      "mercado", "IOR real, elasticidad medida y concentración por nodo"),
     "nodal_mec":      (fig_nodal_mec,      "mercado", "Bertrand/Cournot y el efecto del markup en el modelo"),
     "nodal_var":      (fig_nodal_var,      "riesgo", "GARCH(1,1), VaR/ES condicional y backtest de Kupiec"),
-    "nodal_cov":      (fig_nodal_cov,      "riesgo", "Cobertura de mínima varianza (h* = ρσS/σF)"),
+    "nodal_cov":      (fig_nodal_cov,      "riesgo", "Cobertura de mínima varianza: ratio óptimo y varianza reducida"),
     "nodal_ems":      (fig_nodal_ems,      "almacen", "EMS de baterías y bombeo bajo precio nodal"),
     "nodal_ql":       (fig_nodal_ql,       "aprendiz", "Q-learning: precio y curva de oferta aprendidos"),
     "nodal_ap":       (fig_nodal_ap,       "aprendiz", "Mark-up aprendido según la regla de liquidación"),
@@ -11119,7 +12432,8 @@ NODAL_GRUPOS = [
     ("mercado", "🏛️ Poder de mercado"),
     ("riesgo", "📉 Riesgo: GARCH, VaR y coberturas"),
     ("almacen", "🔋 Almacenamiento"),
-    ("aprendiz", "🤖 Aprendizaje (Q-learning)"),
+    ("aprendiz", "🤖 Aprendizaje por refuerzo (Q-learning multiagente) — objetivo c"),
+    ("sintesis", "🧮 Cierre: tres combinaciones para ver el impacto"),
 ]
 
 NODAL_SUPUESTOS = """
@@ -11142,7 +12456,7 @@ NODAL_SUPUESTOS = """
    percentil 99 de `Gen_EOLICA` y un FP de 0,35, repartida GUJ 60 / ORI 25 / CAR 15 %.
 5. **Pérdidas y congestión.** Linealización de primer orden (`LF_i`) iterada `perdas_iter` veces y
    multiplicadores μ por ascenso dual adaptativo con congelado por hora. La verificación por
-   diferencias finitas (Eq. 2-15) mide el error real de ese atajo: si sube de ~1 %, leer
+   diferencias finitas  mide el error real de ese atajo: si sube de ~1 %, leer
    `converged` antes de usar los números.
 6. **Liquidación.** Uninodal = λ del sistema; zonal = media de los nodos de la subregión;
    híbrido = bolsa + κ·(LMP − media); nodal = LMP pleno. El pago de la demanda usa la energía
@@ -11156,7 +12470,7 @@ NODAL_SUPUESTOS = """
    efecto y así se muestra, no se oculta.
 8. **Almacenamiento.** Water-filling sobre el vector de precios con η, SOC y máscaras por modo.
    No hay restricciones de rampa ni de reserva rodante; por eso su valor está sobrestimado en
-   ~10-20 % frente a un UC completo (Eq. 2-9…2-14).
+   ~10-20 % frente a un UC completo.
 9. **GARCH/VaR/Cobertura.** Sobre la serie horaria de la ventana (≈648 h). El "futuro" se
    aproxima con la serie uninodal (XM no publica futuros en esta API); el spread modelo-vs-real
    es lo que la figura de cobertura interpreta como riesgo locacional no cubrible.
@@ -11208,7 +12522,7 @@ def _tarjeta_nodal(ctx: dict, cfg: dict, mdl: dict) -> None:
     if float(np.max(np.asarray(res.get("emergencia", [0.0]), dtype=float))) > 0:
         band.append(f"🚨 Emergencia activa en {int(np.sum(np.asarray(res['emergencia']) > 0))} h: "
                     "en esas horas el λ se fijó por bisección de balance y no vale la relación de "
-                    "componentes de la Eq. 2-21.")
+                    "componentes de la descomposición del LMP.")
     if float(np.max(np.asarray(res["derrame_MW"], dtype=float))) > 50.0:
         band.append(f"ℹ️ Derrame máximo {float(np.max(res['derrame_MW'])):,.0f} MW: el modelo impone el "
                     "balance del **sistema**, no el de cada nodo (no hay restricción de flujo por nodo en esta "
@@ -11216,18 +12530,46 @@ def _tarjeta_nodal(ctx: dict, cfg: dict, mdl: dict) -> None:
                     "el residuo que transporta la red.")
     for t in band:
         st.warning(t, icon="⚠️" if t.startswith(("⚠", "🛑")) else "ℹ️")
+    rl_txt = []
+    q = mdl.get("ql") or {}
+    if isinstance(q, dict) and q.get("disponible"):
+        rl_txt.append(
+            f"**🤖 aprendizaje por refuerzo (objetivo c):** Q-learning multiagente con "
+            f"{int(q['n_agentes'])} agentes × {int(q['n_acciones'])} acciones × {int(cfg['episodios_rl'])} "
+            f"episodios sobre la hora {int(q['hora'])}; λ aprendido "
+            f"{float(q['lam_final_COP_kWh']):,.0f} vs λ exacto "
+            f"{float(q['lam_exacto_COP_kWh']):,.0f} COP/kWh "
+            f"({float(q['brecha_lambda_pct']):+.1f} %).")
+    apd = mdl.get("ap") or {}
+    if isinstance(apd, dict) and apd.get("reglas"):
+        rl_txt.append(
+            f"Mark-up medio aprendido: uninodal {100.0*float(apd.get('mark_up_uninodal', 0.0)):.2f} % vs "
+            f"nodal {100.0*float(apd.get('mark_up_nodal', 0.0)):.2f} % "
+            f"(Δ {100.0*float(apd.get('delta_mark_up', 0.0)):+.2f} pp).")
+    if mdl.get("est") is not None and isinstance(mdl.get("est"), dict):
+        rl_txt.append(
+            f"2ª etapa estocástica: {int(mdl['est']['k'])} días típicos despachados, VSS "
+            f"{float(mdl['est']['vss_pct']):+.2f} %.")
+    if isinstance(mdl.get("ref"), pd.DataFrame) and len(mdl["ref"]) > 1:
+        rl_txt.append(f"Refuerzos hipotéticos evaluados: {len(mdl['ref']) - 1} candidatos "
+                      "(cada uno con su OPF).")
+    if rl_txt:
+        st.caption(" · ".join(rl_txt))
 
 
 def render_tab_nodal(ctx: dict, filtros: dict[str, Any]) -> None:
-    """Pestaña 🕸️ · precios marginales nodales (módulo académico de la tesis doctoral)."""
+    """Pestaña 🕸️ · precios marginales nodales (módulo académico, v4.2)."""
     st.markdown(
         "### 🕸️ Precios marginales nodales en el SIN: qué cambiaría si la energía se liquidara por nodo\n"
-        "Este módulo no está en el notebook v1-v4: implementa los objetivos **a-f** de la propuesta de "
-        "tesis doctoral *Modelamiento estocástico de los precios de la energía en un mercado de precios "
-        "marginales nodales con alta componente de generación variable* (Anexo V15SC). Resuelve un OPF "
-        "con flujos óptimos DC calibrado contra los datos de la ventana ya cargada (misma `ctx` que el "
-        "resto del tablero), forma los LMP por nodo (Eq. 2-15…2-21) y los compara con la liquidación "
-        "uninodal real de XM bajo escenarios estocásticos, almacenamiento, coberturas y estrategia.\n\n"
+        "Este módulo no está en el notebook v1-v4. Lo desarrolló **Libardo Acero García** "
+        "(asesor CREG, doctorando UNAL) como **Parte de Precios Nodales** de la aplicación y persigue "
+        "tres objetivos, que son los que aparecen citados en cada figura:\n\n"
+        + NODAL_OBJETIVOS_TEXTO
+        + "\nResuelve un OPF con flujos óptimos DC calibrado contra los datos de la ventana ya cargada "
+        "(misma `ctx` que el resto del tablero), forma los precios marginales por nodo y los compara con "
+        "la liquidación uninodal real de XM bajo escenarios estocásticos de recurso y demanda, "
+        "almacenamiento, coberturas de riesgo y agentes que **aprenden por refuerzo** (Q-learning) a "
+        "despachar ante la señal de precio.\n\n"
         "**El foco de esta versión (v4.2) es el efecto positivo:** no si el precio sube o baja, sino "
         "qué gana el sistema cuando la señal de precio lleva información de lugar — menos déficit "
         "sin dueño, congestión con dueño (y por tanto bancable como garantía de refuerzo), "
@@ -11283,8 +12625,11 @@ def render_tab_nodal(ctx: dict, filtros: dict[str, Any]) -> None:
                    + str((mdl.get("fase") or {}).get("texto", "régimen real de la ventana")) + ". "
                    "Si la figura de congestión sale plana el escenario está por debajo del umbral de "
                    "la red: no es un fallo del modelo, es la conclusión del caso base.")
+    with st.expander("🗺️ Regiones del SIN usadas, criterio de agregación y por qué 10 nodos",
+                     expanded=False):
+        _bloque_regiones_nodales(ctx, mdl)
     _tarjeta_nodal(ctx, cfg, mdl)
-    st.markdown("#### Las ocho preguntas de la propuesta (§3.2, pág. 49), una por bloque de figuras")
+    st.markdown("#### Las ocho preguntas que intenta responder esta pestaña, una por bloque de figuras")
     st.caption(
         "¿Cómo se forman los LMP con congestión? → *Mapa de calor* y *Descomposición* · "
         "¿Cuánto sube la dispersión de precios? → *Banda de dispersión* y *KPIs de liquidación* · "
@@ -11301,8 +12646,9 @@ def render_tab_nodal(ctx: dict, filtros: dict[str, Any]) -> None:
         st.markdown(f"##### {titulo_grp}")
         for i, clave in enumerate(claves):
             fn, _grupo, titulo = FIGURES_NODAL[clave]
-            secc, fuente = NODAL_TESIS.get(clave, ("", ""))
-            with st.expander(f"📊 {titulo}" + (f" · tesis {secc}" if secc else ""), expanded=(i == 0)):
+            secc, fuente = NODAL_OBJETIVOS.get(clave, ("", ""))
+            with st.expander(f"📊 {titulo}" + (f" · {secc}" if secc else ""),
+                             expanded=(i == 0)):
                 try:
                     res_f = figura_cacheada(f"nodal:{clave}", fn, ctx, cfg, mdl)
                 except Exception as exc:                           # noqa: BLE001
@@ -11321,7 +12667,7 @@ def render_tab_nodal(ctx: dict, filtros: dict[str, Any]) -> None:
                 if res_f.get("leyenda"):
                     st.caption(res_f["leyenda"])
                 if fuente:
-                    st.caption(f"▸ **Sostenido en la propuesta**: {fuente}. El código del modelo vive en "
+                    st.caption(f"▸ **De dónde sale**: {fuente}. El código del modelo vive en "
                                "`app.py` (sección «10 · MÓDULO SIN NODAL»), sin dependencias fuera de "
                                "`requirements.txt`.")
     st.divider()
@@ -11340,16 +12686,16 @@ def render_tab_nodal(ctx: dict, filtros: dict[str, Any]) -> None:
     st.download_button("⬇️ Descargar precios nodales (CSV)", tab.to_csv(index=False).encode(),
                        f"precios_nodales_{ctx['ini']}_{ctx.get('fin_efectiva', ctx['fin'])}.csv",
                        "text/csv", key="dl-nodal-lmp")
-    with st.expander("📚 Celda ↔ tesis: de dónde sale cada figura del módulo nodal", expanded=False):
+    with st.expander("📚 Figura ↔ objetivo: qué cubre cada figura y de dónde sale", expanded=False):
         mapa = pd.DataFrame([dict(figura=k, funcion=v[0].__name__, grupo=v[1], titulo=v[2],
-                                  seccion=NODAL_TESIS.get(k, ("", ""))[0],
-                          fuente=NODAL_TESIS.get(k, ("", ""))[1]) for k, v in FIGURES_NODAL.items()])
+                                  seccion=NODAL_OBJETIVOS.get(k, ("", ""))[0],
+                          fuente=NODAL_OBJETIVOS.get(k, ("", ""))[1]) for k, v in FIGURES_NODAL.items()])
         st.dataframe(mapa, use_container_width=True, hide_index=True)
         st.caption("Este bloque **no** tiene contraparte en las 212 celdas del notebook: su linaje es el "
-                   "documento de la tesis (Anexo V15SC) más los datos de las pestañas v1-v4, y por eso no "
+                   "documento de trabajo más los datos de las pestañas v1-v4, y por eso no "
                    "entra en `CELDAS_NB` ni en el mapa 1z de *Datos y bitácora*. La verificación propia "
                    "del módulo está en `tools/verificar_celdas.py` (sección nodal) y exige que "
-                   "`FIGURES_NODAL` y `NODAL_TESIS` tengan exactamente las mismas claves.")
+                   "`FIGURES_NODAL` y `NODAL_OBJETIVOS` tengan exactamente las mismas claves.")
     with st.expander("🔍 Supuestos, límites y qué NO demuestra esta pestaña", expanded=False):
         st.markdown(NODAL_SUPUESTOS)
         st.markdown(_nodal_pie(f"Ventana {ctx['ini']} → {ctx.get('fin_efectiva', ctx['fin'])}; "
