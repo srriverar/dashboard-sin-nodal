@@ -1,0 +1,18 @@
+# datos crudos y derivados (no versionar: pueden ser grandes y se regeneran)
+data/raw/*.csv
+data/processed/*.csv
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+# la referencia SÍ se versiona (pequeña, garantiza que la app arranque offline)
+!data/reference/*.csv
+# certificados locales (NO subir)
+certs/*.pem
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+# streamlit
+.secrets.toml
+.streamlit/secrets.toml

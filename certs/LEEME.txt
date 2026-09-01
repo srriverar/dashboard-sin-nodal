@@ -1,0 +1,16 @@
+certs/ — certificados locales (opcionales, NUNCA se suben a Git: ver .gitignore)
+
+El notebook original hacía:
+    assert os.path.exists(r"C:\AppManuel\certs\upme_bundle.pem")
+    ssl._create_default_https_context = ...   # bundle Sectigo para geo.upme.gov.co
+
+Esta app NO usa assert (para que arranque en cualquier máquina) y XM no necesita bundle propio
+(certificado público válido). Solo coloca aquí un bundle si:
+
+  1) Tu red corporativa/VPN hace inspección TLS intermedia: copia el .pem de tu entidad y
+     renómbralo upme_bundle.pem (la app lo detecta y fija SSL_CERT_FILE automáticamente), o
+     exporta SSL_CERT_FILE antes de arrancar:
+         set SSL_CERT_FILE=C:\AppManuel\certs\upme_bundle.pem
+  2) Vas a usar el módulo geográfico de UPME (geo.upme.gov.co), que sí exige ese bundle.
+
+Formatos aceptados: PEM (cadena de certificados). Si falta, la app funciona igual y lo avisa.

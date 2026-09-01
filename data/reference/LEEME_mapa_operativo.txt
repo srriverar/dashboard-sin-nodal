@@ -1,0 +1,36 @@
+mapa_operativo.csv  (OPCIONAL)  —  ámbito operativo/geográfico de las figuras 08d-08h
+=====================================================================================
+
+Qué desbloquea
+--------------
+En la pestaña "🕐 Perfiles × hora" hay un selector Nivel / Ámbito. Sin este archivo los
+niveles disponibles son los que XM publica en ListadoRecursos (Tecnología, Tipo de
+recurso, Agente/empresa, Estado operativo). Al colocar este CSV aparecen además:
+
+    Área operativa (SIMEM)      Subárea operativa (SIMEM)
+
+que son exactamente los dos niveles de NIVELES_OPERATIVOS del notebook (celdas v2 c31-c35).
+
+Formato (CSV con encabezado, UTF-8, separador coma)
+---------------------------------------------------
+Codigo_Planta,Area_Operativa,Subarea_Operativa
+10053,NORIENTE,NORIENTE-CENTRAL
+10101,BOGOTÁ,BOGOTÁ-ALTIPLANO
+
+* Codigo_Planta  → el mismo código que usa XM (Values_code de ListadoRecursos) y que aparece
+                   en data/raw/dim_plantas_*.csv. Es la única columna obligatoria para unir.
+* Area_Operativa / Subarea_Operativa → texto libre; se agrupa por valor exacto.
+* Filas sobrantes se ignoran; plantas sin fila quedan en "Sin asignar".
+
+De dónde se saca
+----------------
+El notebook la construía con el módulo `src/actualizar_areas_operativas_simem.py`
+(tabla de áreas/subáreas del CNO-SIMEM, agregada a nivel de recurso). Si conservas ese
+script, basta con exportar su resultado a este CSV; si no, cualquier listado público de
+áreas operativas del CNO sirve mientras respete el código de planta.
+
+Comportamiento sin el archivo
+-----------------------------
+Nada se rompe: la app sigue dibujando las figuras 08d/08e (y 08g/08h con paleta
+geográfica) sobre los niveles disponibles y muestra un aviso explicando cómo activar
+Área/Subárea.
