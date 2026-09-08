@@ -73,6 +73,9 @@ refuerzo (Q-learning) ante la señal de precio.
 Esta app reproduce esas celdas con código propio, equivalente y ejecutable sin
 Jupyter. Los datos derivados se cachean en `data/raw` y `data/reference`.
 ================================================================================
+
+
+
 """
 from __future__ import annotations
 
@@ -5576,6 +5579,7 @@ def tabla_cobertura_nb() -> pd.DataFrame:
 TITULOS_TABS = [
     ("🎯 Resumen ejecutivo", "resumen"),
     ("⚡ Generación", "generacion"),
+    ("📈 Demanda", "demanda"),
     ("💧 Hidrología", "hidrologia"),
     ("🌊 El Niño", "nino"),
     ("💰 Costos y emisiones", "costos"),
@@ -6032,6 +6036,14 @@ def cabecera(ctx: dict | None = None) -> None:
         .autoria {{background:#eef3fb;border-left:4px solid {AZUL};border-radius:6px;padding:10px 14px;
                    margin:8px 0 14px 0;font-size:.92rem;line-height:1.55;color:#253044}}
         </style>""", unsafe_allow_html=True)
+    
+    # Contador de visitas - GoatCounter (tracking invisible)
+    import streamlit.components.v1 as components
+    components.html("""
+    <script data-goatcounter="https://dashboard-sin-nodal.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
+    """, height=0)
+    
     st.title("🌊 Agua, precio y El Niño — el SIN colombiano bajo sequía")
     st.caption("**Observatorio operativo del mercado eléctrico de Colombia** · construido con la "
                "información operativa pública de XM (API Bienda) **y** los datos climáticos de NOAA/CPC "
@@ -6388,6 +6400,8 @@ def main() -> None:
                 render_tab_hidrologia(ctx, filtros)
             elif clave == "generacion":
                 render_tab_generacion(ctx, filtros)
+            elif clave == "demanda":
+                render_tab_demanda(ctx, filtros)
             elif clave == "costos":
                 render_tab_costos(ctx, filtros)
             elif clave == "v4":
@@ -6824,6 +6838,855 @@ def comparar_catalogos_historicos(ctx: dict) -> None:
 
 
 # ==============================================================================
+
+# ==============================================================================
+# 9.5 · MÓDULO DE DEMANDA — análisis de demanda del SIN
+# ==============================================================================
+
+# Módulo de demanda del SIN - análisis de demanda, proyecciones UPME, anomalías ENSO, sensibilidad térmica
+
+# ==============================================================================
+# Las constantes de color ya están definidas en app.py: ROJO, AZUL, VERDE, etc.
+# Las funciones auxiliares _fig(), _leyenda(), _clave_fig(), figura_cacheada()
+# y bitacora() también vienen de app.py. Solo se añaden aquí las funciones
+# nuevas del módulo de demanda.
+# ==============================================================================
+
+
+# ---- Datos de referencia para la proyección UPME y el análisis histórico ------
+
+#: Proyección UPME 2026-2040 (anexo resultados ver. Ago-2026).
+#: Escenario medio con cargas nuevas y sin cargas nuevas.
+UPME_PROYECCION = {
+    "anio":       [2026, 2027, 2028, 2029, 2030, 2032, 2035, 2040],
+    "base_GWh":   [79200, 81400, 83800, 86300, 89000, 94700, 103800, 119600],
+    "cargas_GWh": [84700, 87600, 90700, 93900, 97400, 104700, 116200, 138500],
+    "pmax_base_MW":    [12142, 12500, 12850, 13200, 13570, 14350, 15600, 17800],
+    "pmax_cargas_MW":  [12700, 13100, 13500, 13950, 14400, 15350, 16900, 19500],
+    "fc_base":    [0.810, 0.812, 0.815, 0.818, 0.821, 0.828, 0.840, 0.860],
+    "fc_cargas":  [0.795, 0.798, 0.802, 0.805, 0.809, 0.816, 0.830, 0.855],
+}
+
+#: Nuevas cargas UPME (GWh/año) — grandes consumidores, movilidad eléctrica, datacenters
+UPME_NUEVAS_CARGAS = {
+    "anio":             [2026, 2027, 2028, 2029, 2030, 2032, 2035, 2040],
+    "grandes_cons":     [5526, 6100, 6700, 7300, 7900, 8400, 8900, 9385],
+    "movilidad_elec":   [334,  580,  1000, 1700, 2600, 4200, 6800, 9604],
+    "datacenters":      [0,    50,   105,  170,  250,  335,  380,  400],
+    "gen_distribuida":  [-500, -700, -1000,-1400,-2000,-3500,-6500,-10234],
+}
+
+#: Factor de carga histórico del SIN (observado 2000-2025)
+FC_HISTORICO = {
+    "anio": list(range(2000, 2026)),
+    "fc":   [0.626, 0.632, 0.639, 0.647, 0.655, 0.661, 0.668, 0.676,
+             0.683, 0.691, 0.698, 0.706, 0.714, 0.721, 0.729, 0.737,
+             0.743, 0.749, 0.755, 0.760, 0.768, 0.775, 0.780, 0.784,
+             0.787, 0.790],
+}
+
+#: Tasas de crecimiento por década
+TASAS_CRECIMIENTO = [
+    {"periodo": "2000-2009", "tasa_pct": 3.42},
+    {"periodo": "2010-2019", "tasa_pct": 2.63},
+    {"periodo": "2020-2025", "tasa_pct": 3.68},
+    {"periodo": "2023-2026*", "tasa_pct": 2.80},
+    {"periodo": "Últimos 12 meses", "tasa_pct": 4.10},
+]
+
+#: Sensibilidad térmica regional (% por °C) — González Sierra (2026)
+SENSIBILIDAD_TERMICA = {
+    "region":      ["Caribe (NASA POWER)", "Caribe (IDEAM)", "Bogotá"],
+    "pct_por_C":   [2.46, 1.66, 1.04],
+    "ic_inf":      [2.10, 1.20, 0.69],
+    "ic_sup":      [2.81, 2.12, 1.38],
+}
+
+#: Anomalías de demanda por episodio ENSO (residuo STL, %)
+ANOMALIAS_ENSO_DEMANDA = {
+    "episodio":       ["El Niño 2009-10", "El Niño 2015-16", "El Niño 2023-24", "El Niño 2026 (prov.)"],
+    "anomalia_pct":   [0.37, 0.45, 1.45, 0.83],
+}
+
+#: Anomalías regionales El Niño 2023-24 (%)
+ANOMALIAS_REGIONALES_NINO_2324 = {
+    "region":      ["Caribe", "SIN nacional", "Oriente"],
+    "anomalia_pct":[1.59, 0.85, 0.39],
+    "maximo_pct":  [5.7, 2.8, 1.5],
+}
+
+#: Crecimiento de demanda 2026 por región (YTD vs 2025, %)
+CRECIMIENTO_REGIONAL_2026 = {
+    "region":      ["Caribe", "SIN nacional", "Oriente", "Centro", "Antioquia"],
+    "crec_pct":    [9.3, 5.6, 4.2, 4.8, 5.1],
+}
+
+#: Récords de potencia del SIN
+RECORDS_POTENCIA = [
+    {"fecha": "2025-12-11", "potencia_MW": 12220, "mes": "Diciembre", "nota": "Récord anterior"},
+    {"fecha": "2026-08-20", "potencia_MW": 12576, "mes": "Agosto", "nota": "Récord histórico (fuera de temporada)"},
+]
+
+#: Indicadores a vigilar (verano 2026-27) — del artículo
+INDICADORES_VIGILAR = [
+    {"indicador": "Pico contra la senda",
+     "estado": "12.576 MW vs 12.700 MW proyectados (con cargas nuevas): brecha 1,0 %",
+     "lectura": "Si los picos de sept-dic cierran esa distancia, la potencia corre por delante de la proyección más exigente."},
+    {"indicador": "Banda de energía",
+     "estado": "Demanda observada: ~57 % del incremento de cargas nuevas materializado",
+     "lectura": "Actualizar cada mes: qué tan rápido se conectan los grandes consumidores reportados."},
+    {"indicador": "ONI y temperatura",
+     "estado": "2 trimestres ONI > +0,5 °C (camino a 5 para clasificación oficial)",
+     "lectura": "Cada +0,5 °C sostenido ≈ 500 GWh adicionales en el semestre. Caribe responde al doble."},
+    {"indicador": "Margen por las dos puntas",
+     "estado": "Ene-2027: déficit hídrico ~52 GWh/día; demanda +2,7 a +5,5 GWh/día por temperatura",
+     "lectura": "Por cada GWh/día que El Niño añade a la demanda, retira ~10-20 de los aportes."},
+    {"indicador": "Respuesta de la demanda (Res. 101 111)",
+     "estado": "Punto de partida: 0,2 % de la demanda diaria",
+     "lectura": "Cualquier múltiplo durante el verano será información sobre flexibilidad real del SIN."},
+]
+
+
+# ==============================================================================
+# Funciones de cálculo del módulo de demanda
+# ==============================================================================
+
+def _demanda_horaria_sistema(ctx: dict) -> pd.DataFrame:
+    """Extrae la serie horaria de demanda del SIN desde el contexto ya cargado.
+
+    Usa `DemaReal_Sistema` (la métrica horaria de XM) que ya está en `ctx["sistema"]`
+    o `ctx["sistema_v4"]` como columna `Demanda_MW`.
+    """
+    for clave in ("sistema_v4", "sistema"):
+        df = ctx.get(clave)
+        if isinstance(df, pd.DataFrame) and not df.empty and "Demanda_MW" in df.columns:
+            out = df[["Fecha", "Hora", "Demanda_MW"]].copy()
+            out["Fecha"] = pd.to_datetime(out["Fecha"], errors="coerce")
+            out["Demanda_MW"] = pd.to_numeric(out["Demanda_MW"], errors="coerce")
+            out = out.dropna(subset=["Fecha", "Demanda_MW"])
+            return out
+    # Fallback: demanda real cruda
+    dr = ctx.get("demanda_real", pd.DataFrame())
+    if isinstance(dr, pd.DataFrame) and not dr.empty:
+        col = next((c for c in dr.columns if "DemaReal" in str(c)), None)
+        if col:
+            out = dr.copy()
+            if "Date" in out.columns:
+                out = out.rename(columns={"Date": "Fecha"})
+            horas = [c for c in out.columns if str(c).startswith("Values_Hour")]
+            if horas:
+                out = out.melt(id_vars=["Fecha"], value_vars=horas, var_name="_h", value_name="Demanda_kWh")
+                out["Hora"] = out["_h"].astype(str).str.extract(r"(\d+)$")[0].astype(float)
+                out["Demanda_MW"] = pd.to_numeric(out["Demanda_kWh"], errors="coerce") / 1000.0
+                out["Fecha"] = pd.to_datetime(out["Fecha"], errors="coerce")
+                return out[["Fecha", "Hora", "Demanda_MW"]].dropna()
+    return pd.DataFrame(columns=["Fecha", "Hora", "Demanda_MW"])
+
+
+def _resumen_demanda(ctx: dict) -> dict:
+    """Calcula KPIs de demanda de la ventana actual."""
+    dh = _demanda_horaria_sistema(ctx)
+    if dh.empty:
+        return {}
+    dh["Fecha_d"] = dh["Fecha"].dt.date
+    diario = dh.groupby("Fecha_d")["Demanda_MW"].agg(["sum", "mean", "max"]).reset_index()
+    diario.columns = ["Fecha", "Energia_MWh", "Media_MW", "Max_MW"]
+    diario["Energia_GWh"] = diario["Energia_MWh"] / 1000.0
+    # Factor de carga de la ventana
+    energia_total = float(diario["Energia_MWh"].sum())
+    pmax = float(diario["Max_MW"].max()) if not diario.empty else 0
+    dias = len(diario)
+    fc = energia_total / (pmax * 24.0 * max(dias, 1)) if pmax > 0 else float("nan")
+    # Hora del pico
+    pico_idx = dh["Demanda_MW"].idxmax()
+    pico_hora = int(dh.loc[pico_idx, "Hora"]) if pico_idx is not None and pd.notna(pico_idx) else None
+    pico_fecha = dh.loc[pico_idx, "Fecha"].date() if pico_idx is not None and pd.notna(pico_idx) else None
+    pico_mw = float(dh["Demanda_MW"].max())
+    # Tasa de crecimiento (primera mitad vs segunda mitad)
+    if dias >= 6:
+        mitad = dias // 2
+        e1 = float(diario["Energia_GWh"].iloc[:mitad].mean())
+        e2 = float(diario["Energia_GWh"].iloc[mitad:].mean())
+        tasa_ventana = 100.0 * (e2 - e1) / max(e1, 1e-9)
+    else:
+        tasa_ventana = float("nan")
+    return {
+        "diario": diario,
+        "horaria": dh,
+        "energia_GWh": energia_total / 1000.0,
+        "pmax_MW": pmax,
+        "fc_ventana": fc,
+        "dias": dias,
+        "pico_hora": pico_hora,
+        "pico_fecha": pico_fecha,
+        "pico_mw": pico_mw,
+        "tasa_ventana_pct": tasa_ventana,
+        "media_MW": float(diario["Media_MW"].mean()) if not diario.empty else float("nan"),
+    }
+
+
+# ==============================================================================
+# Figuras del módulo de demanda
+# ==============================================================================
+
+def fig_dem_01_serie_diaria(ctx: dict) -> dict | None:
+    """Serie diaria de demanda: energía, pico y media móvil."""
+    rd = _resumen_demanda(ctx)
+    if not rd or rd.get("diario") is None or rd["diario"].empty:
+        return None
+    d = rd["diario"]
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+                        row_heights=[0.55, 0.45],
+                        subplot_titles=("Energía diaria del SIN (GWh)",
+                                        "Demanda máxima diaria (MW)"))
+    fig.add_trace(go.Bar(x=d["Fecha"], y=d["Energia_GWh"], name="Energía (GWh)",
+                         marker_color=AZUL, opacity=0.7,
+                         hovertemplate="%{x|%d-%b-%Y}<br>%{y:,.1f} GWh<extra></extra>"), row=1, col=1)
+    if len(d) >= 7:
+        ma = d["Energia_GWh"].rolling(7, min_periods=3).mean()
+        fig.add_trace(go.Scatter(x=d["Fecha"], y=ma, name="Media móvil 7 días",
+                                 line=dict(color=ROJO, width=2.2),
+                                 hovertemplate="%{x|%d-%b}<br>MA7 %{y:,.1f} GWh<extra></extra>"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=d["Fecha"], y=d["Max_MW"], name="Pico diario (MW)",
+                             mode="lines+markers", line=dict(color=NARANJA, width=2),
+                             marker=dict(size=4),
+                             hovertemplate="%{x|%d-%b}<br>%{y:,.0f} MW<extra></extra>"), row=2, col=1)
+    # Líneas de proyección UPME como referencia
+    for label, val, col in [("Base UPME 2026", 12142, AMBAR),
+                             ("Con cargas nuevas", 12700, ROJO)]:
+        fig.add_hline(y=val, line=dict(color=col, dash="dot", width=1.4),
+                      annotation_text=f"{label}: {val:,} MW", annotation_font_size=9,
+                      annotation_position="top right", row=2, col=1)
+    # Marcar el récord de la ventana
+    if rd.get("pico_fecha"):
+        fig.add_annotation(x=pd.Timestamp(rd["pico_fecha"]), y=rd["pico_mw"],
+                           text=f"Récord ventana: {rd['pico_mw']:,.0f} MW (H{rd['pico_hora']:02d})",
+                           showarrow=True, arrowhead=1, ay=-35, ax=0,
+                           font=dict(size=9, color=ROJO), bgcolor="rgba(255,255,255,.9)",
+                           bordercolor=ROJO, borderpad=3, row=2, col=1)
+    fig.update_xaxes(title_text="Fecha", row=2, col=1)
+    fig.update_yaxes(title_text="GWh", row=1, col=1)
+    fig.update_yaxes(title_text="MW", row=2, col=1)
+    fig.update_layout(height=580, legend=dict(orientation="h", y=1.10, x=0),
+                      title_text=f"Demanda del SIN — ventana {ctx['ini']} → {ctx['fin']}")
+    return {"fig": fig, "leyenda": _leyenda(
+        f"Demanda diaria del SIN: energía y potencia máxima",
+        f"Barra: energía diaria (GWh) con media móvil de 7 días. Abajo: demanda máxima "
+        f"diaria (MW). Líneas punteadas: proyección UPME 2026 ({12142:,} MW base, "
+        f"{12700:,} MW con cargas nuevas).",
+        f"Energía total de la ventana: {rd['energia_GWh']:,.1f} GWh en {rd['dias']} días. "
+        f"Pico: {rd['pico_mw']:,.0f} MW el {rd['pico_fecha']} a la hora {rd['pico_hora']:02d}. "
+        f"Factor de carga de la ventana: {rd['fc_ventana']:.3f}. "
+        f"Tendencia (1ª vs 2ª mitad): {rd['tasa_ventana_pct']:+.1f} %.",
+        "En El Niño la demanda sube por temperatura (+1 % por cada +0,5 °C sostenido), "
+        "y el pico puede desplazarse fuera de la temporada histórica (sept-dic). "
+        "El récord de agosto 2026 (12.576 MW) llegó dos meses antes de lo esperado.",
+        "DemaReal/Sistema · XM (API Bienda) · horizonte de la ventana")
+    }
+
+
+def fig_dem_02_perfil_horario(ctx: dict) -> dict | None:
+    """Perfil horario de demanda por tipo de día (laborable, sábado, domingo/festivo)."""
+    dh = _demanda_horaria_sistema(ctx)
+    if dh.empty or len(dh) < 48:
+        return None
+    dh = dh.copy()
+    dh["dow"] = dh["Fecha"].dt.dayofweek  # 0=lun ... 6=dom
+    dh["tipo_dia"] = dh["dow"].map(lambda d: "Domingo/Festivo" if d >= 5 else
+                                    ("Sábado" if d == 5 else "Laborable"))
+    # Corregir: sábado es 5
+    dh["tipo_dia"] = dh["dow"].map(lambda d: "Domingo" if d == 6 else
+                                    ("Sábado" if d == 5 else "Laborable"))
+    perfil = dh.groupby(["tipo_dia", "Hora"])["Demanda_MW"].mean().reset_index()
+    # Normalizar por la media del tipo de día
+    medias = perfil.groupby("tipo_dia")["Demanda_MW"].transform("mean")
+    perfil["indice"] = 100.0 * perfil["Demanda_MW"] / medias
+    fig = _fig(ctx, 420)
+    colores_tipo = {"Laborable": AZUL, "Sábado": AMBAR, "Domingo": VERDE}
+    for tipo in ["Laborable", "Sábado", "Domingo"]:
+        sub = perfil[perfil["tipo_dia"] == tipo].sort_values("Hora")
+        if sub.empty:
+            continue
+        fig.add_trace(go.Scatter(x=sub["Hora"], y=sub["Demanda_MW"],
+                                 name=tipo, mode="lines+markers",
+                                 line=dict(color=colores_tipo.get(tipo, GRIS), width=2.2),
+                                 marker=dict(size=5),
+                                 hovertemplate=f"{tipo}<br>H%{{x:02d}} · %{{y:,.0f}} MW<extra></extra>"))
+    # Anotar hora pico
+    lab = perfil[perfil["tipo_dia"] == "Laborable"]
+    if not lab.empty:
+        h_pico = int(lab.loc[lab["Demanda_MW"].idxmax(), "Hora"])
+        v_pico = float(lab.loc[lab["Demanda_MW"].idxmax(), "Demanda_MW"])
+        fig.add_annotation(x=h_pico, y=v_pico,
+                           text=f"Pico laboral: H{h_pico:02d} ({v_pico:,.0f} MW)",
+                           showarrow=True, arrowhead=1, ay=-32, ax=0,
+                           font=dict(size=9, color=AZUL), bgcolor="rgba(255,255,255,.9)",
+                           bordercolor=AZUL, borderpad=3)
+    fig.update_xaxes(title_text="Hora (H01 = 00:00–01:00)", tickmode="array",
+                     tickvals=list(range(1, 25, 2)),
+                     ticktext=[f"H{h:02d}" for h in range(1, 25, 2)])
+    fig.update_yaxes(title_text="Demanda promedio (MW)")
+    fig.update_layout(title_text="Perfil horario de demanda por tipo de día",
+                      legend=dict(orientation="h", y=1.12, x=0))
+    return {"fig": fig, "leyenda": _leyenda(
+        "Perfil horario promedio por tipo de día",
+        f"Demanda media por hora separada en laborables, sábados y domingos sobre "
+        f"{len(dh):,} observaciones horarias de la ventana.",
+        f"Un jueves típico consume ~4 % más que la media y un domingo ~10 % menos. "
+        f"La hora pico laboral es la H{h_pico:02d} ({v_pico:,.0f} MW): esa es la hora "
+        f"que dimensiona el sistema. La punta nocturna (H19-H21) es la que se estresa "
+        f"cuando la hidráulica no alcanza.",
+        "En El Niño el perfil se aplana por arriba: los valles de madrugada suben más "
+        "que el pico (uso de aire acondicionado nocturno en el Caribe), y el factor de "
+        "carga aumenta. La hora 20 es el máximo del día en la mayoría del año.",
+        "DemaReal/Sistema · XM · perfil promedio de la ventana")
+    }
+
+
+def fig_dem_03_factor_carga(ctx: dict) -> dict | None:
+    """Factor de carga: histórico 2000-2025 + proyección UPME 2027-2040 + ventana actual."""
+    rd = _resumen_demanda(ctx)
+    anios = FC_HISTORICO["anio"]
+    fcs = FC_HISTORICO["fc"]
+    fig = _fig(ctx, 440)
+    # Observado
+    fig.add_trace(go.Scatter(x=anios, y=fcs, name="FC observado (2000–2025)",
+                             mode="lines+markers", line=dict(color=AZUL, width=2.4),
+                             marker=dict(size=5),
+                             hovertemplate="%{x}<br>FC %{y:.3f}<extra></extra>"))
+    # Proyección UPME
+    upme_anios = UPME_PROYECCION["anio"]
+    upme_fc_b = UPME_PROYECCION["fc_base"]
+    upme_fc_c = UPME_PROYECCION["fc_cargas"]
+    fig.add_trace(go.Scatter(x=upme_anios, y=upme_fc_c, name="UPME con cargas nuevas",
+                             mode="lines", line=dict(color=NARANJA, width=2, dash="dot"),
+                             hovertemplate="%{x}<br>FC %{y:.3f}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=upme_anios, y=upme_fc_b, name="UPME base",
+                             mode="lines", line=dict(color=AMBAR, width=1.6, dash="dash"),
+                             hovertemplate="%{x}<br>FC %{y:.3f}<extra></extra>"))
+    # Ventana actual
+    if rd and rd.get("fc_ventana") and not np.isnan(rd["fc_ventana"]):
+        anio_actual = ctx["ini"].year
+        fig.add_trace(go.Scatter(x=[anio_actual], y=[rd["fc_ventana"]],
+                                 name=f"Ventana actual ({anio_actual}): {rd['fc_ventana']:.3f}",
+                                 mode="markers",
+                                 marker=dict(size=14, color=ROJO, symbol="diamond",
+                                             line=dict(color="white", width=2)),
+                                 hovertemplate=f"Ventana {ctx['ini']}→{ctx['fin']}<br>"
+                                               f"FC {rd['fc_ventana']:.3f}<extra></extra>"))
+    # Tendencia lineal
+    x = np.array(anios, dtype=float)
+    y = np.array(fcs, dtype=float)
+    m, b = np.polyfit(x, y, 1)
+    fig.add_trace(go.Scatter(x=[min(anios), max(anios)], y=[m * min(anios) + b, m * max(anios) + b],
+                             name=f"Tendencia: +{m*1000:.1f} milésimas/año",
+                             mode="lines", line=dict(color=GRIS, width=1.2, dash="dot"),
+                             showlegend=True))
+    fig.update_xaxes(title_text="Año")
+    fig.update_yaxes(title_text="Factor de carga (adimensional)", range=[0.58, 0.90])
+    fig.update_layout(title_text="Factor de carga anual del SIN: 25 años de aplanamiento",
+                      legend=dict(orientation="h", y=1.12, x=0))
+    return {"fig": fig, "leyenda": _leyenda(
+        "Factor de carga: la curva que se llena por los valles",
+        f"FC = Energía anual / (Pico × 8.760 h). Observado 2000–2025 (azul), proyección UPME "
+        f"2027–2040 (naranja). Tendencia: +{m*1000:.1f} milésimas/año (~7 según González Sierra).",
+        f"El FC pasó de {fcs[0]:.3f} en {anios[0]} a {fcs[-1]:.3f} en {anios[-1]}: 16 puntos de "
+        f"aplanamiento en 25 años. UPME proyecta {upme_fc_b[-1]:.3f} en 2040 (base) y "
+        f"{upme_fc_c[-1]:.3f} (con cargas nuevas). "
+        f"Ventana actual: FC = {rd.get('fc_ventana', float('nan')):.3f}." if rd else "",
+        "Un FC alto significa que los valles de madrugada se llenan (más consumo nocturno: "
+        "aire acondicionado, industria continua). El sistema se dimensiona para el pico pero "
+        "se paga con la energía: cuando el FC sube, cada MW de infraestructura trabaja más "
+        "horas, pero desaparecen las horas de holgura donde antes cabían los errores de "
+        "pronóstico.",
+        "González Sierra (2026) · UPME Proyección 2026-2040 · DemaReal/Sistema (XM)")
+    }
+
+
+def fig_dem_04_proyeccion_upme(ctx: dict) -> dict | None:
+    """Proyección UPME 2026-2040: energía y potencia, base vs con cargas nuevas."""
+    fig = make_subplots(rows=1, cols=2, subplot_titles=("Energía anual (GWh)", "Potencia máxima (MW)"),
+                        horizontal_spacing=0.09)
+    anios = UPME_PROYECCION["anio"]
+    # Energía
+    fig.add_trace(go.Scatter(x=anios, y=UPME_PROYECCION["cargas_GWh"], name="Con cargas nuevas",
+                             mode="lines+markers", line=dict(color=ROJO, width=2.4),
+                             marker=dict(size=6),
+                             hovertemplate="%{x}<br>%{y:,.0f} GWh<extra></extra>"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=anios, y=UPME_PROYECCION["base_GWh"], name="Base (sin cargas nuevas)",
+                             mode="lines+markers", line=dict(color=AZUL, width=2, dash="dash"),
+                             marker=dict(size=5),
+                             hovertemplate="%{x}<br>%{y:,.0f} GWh<extra></extra>"), row=1, col=1)
+    # Bandas de confianza (±5 % aproximado)
+    for i, (a, v) in enumerate(zip(anios, UPME_PROYECCION["cargas_GWh"])):
+        if i == 0:
+            x_low, x_high, y_low, y_high = [a], [a], [v * 0.95], [v * 1.05]
+        else:
+            x_low.append(a); x_high.append(a)
+            y_low.append(v * 0.95); y_high.append(v * 1.05)
+    fig.add_trace(go.Scatter(x=anios + anios[::-1],
+                             y=[v * 1.05 for v in UPME_PROYECCION["cargas_GWh"]] +
+                               [v * 0.95 for v in UPME_PROYECCION["cargas_GWh"][::-1]],
+                             fill="toself", fillcolor="rgba(198,40,40,0.08)",
+                             line=dict(color="rgba(0,0,0,0)"), name="Banda ±5 %",
+                             showlegend=True, hoverinfo="skip"), row=1, col=1)
+    # Potencia
+    fig.add_trace(go.Scatter(x=anios, y=UPME_PROYECCION["pmax_cargas_MW"],
+                             name="Pmax con cargas nuevas",
+                             mode="lines+markers", line=dict(color=ROJO, width=2.4),
+                             marker=dict(size=6)), row=1, col=2)
+    fig.add_trace(go.Scatter(x=anios, y=UPME_PROYECCION["pmax_base_MW"],
+                             name="Pmax base",
+                             mode="lines+markers", line=dict(color=AZUL, width=2, dash="dash"),
+                             marker=dict(size=5)), row=1, col=2)
+    # Récord observado
+    fig.add_hline(y=12576, line=dict(color=NARANJA, dash="dot", width=1.4),
+                  annotation_text="Récord Ago-2026: 12.576 MW", annotation_font_size=9,
+                  annotation_position="top left", row=1, col=2)
+    fig.update_xaxes(title_text="Año", row=1, col=1)
+    fig.update_xaxes(title_text="Año", row=1, col=2)
+    fig.update_yaxes(title_text="GWh", row=1, col=1)
+    fig.update_yaxes(title_text="MW", row=1, col=2)
+    fig.update_layout(height=420, legend=dict(orientation="h", y=1.14, x=0),
+                      title_text="Proyección UPME 2026-2040: dos variantes que separan 19.000 GWh a 2040")
+    return {"fig": fig, "leyenda": _leyenda(
+        "Proyección oficial de demanda: la brecha entre base y cargas nuevas",
+        "La UPME publica dos variantes: base (2,46 % anual) y con cargas nuevas (3,05 %). "
+        "La diferencia: ~19.000 GWh adicionales a 2040, casi una cuarta parte de la demanda actual.",
+        f"En 2040, la variante base proyecta {UPME_PROYECCION['base_GWh'][-1]:,.0f} GWh y "
+        f"{UPME_PROYECCION['pmax_base_MW'][-1]:,.0f} MW; con cargas nuevas: "
+        f"{UPME_PROYECCION['cargas_GWh'][-1]:,.0f} GWh y "
+        f"{UPME_PROYECCION['pmax_cargas_MW'][-1]:,.0f} MW. El récord de agosto 2026 "
+        f"(12.576 MW) ya superó la base de 2026 (12.142 MW).",
+        "La demanda real de 2026 está trazando una trayectoria intermedia en energía (~57 % "
+        "del incremento materializado) y exigente en potencia (récord dentro de la banda con "
+        "cargas nuevas). El verano 2026-27 será el banco de pruebas del selector de escenario.",
+        "UPME — Proyección de demanda 2026-2040, Rev. Julio 2026 y anexo de resultados")
+    }
+
+
+def fig_dem_05_nuevas_cargas(ctx: dict) -> dict | None:
+    """Descomposición de las nuevas cargas UPME: grandes consumidores, movilidad, datacenters."""
+    nc = UPME_NUEVAS_CARGAS
+    anios = nc["anio"]
+    fig = _fig(ctx, 440)
+    # Áreas apiladas
+    fig.add_trace(go.Scatter(x=anios, y=nc["grandes_cons"], name="Grandes consumidores",
+                             fill="tozeroy", fillcolor="rgba(31,119,180,0.4)",
+                             line=dict(color=AZUL, width=1.5),
+                             hovertemplate="%{x}<br>%{y:,.0f} GWh<extra></extra>"))
+    fig.add_trace(go.Scatter(x=anios, y=[a + b for a, b in zip(nc["grandes_cons"], nc["movilidad_elec"])],
+                             name="Movilidad eléctrica", fill="tonexty",
+                             fillcolor="rgba(239,108,0,0.4)",
+                             line=dict(color=NARANJA, width=1.5),
+                             hovertemplate="%{x}<br>%{y:,.0f} GWh acum.<extra></extra>"))
+    # Datacenters (anotación especial)
+    fig.add_trace(go.Scatter(x=anios, y=nc["datacenters"], name="Centros de datos",
+                             mode="lines+markers", line=dict(color="#9c27b0", width=2.5),
+                             marker=dict(size=7, symbol="diamond"),
+                             hovertemplate="%{x}<br>%{y:,.0f} GWh<extra></extra>"))
+    # Generación distribuida (negativa)
+    fig.add_trace(go.Scatter(x=anios, y=nc["gen_distribuida"], name="Gen. distribuida (resta)",
+                             fill="tozeroy", fillcolor="rgba(76,175,80,0.25)",
+                             line=dict(color=VERDE, width=1.5, dash="dash"),
+                             hovertemplate="%{x}<br>%{y:,.0f} GWh<extra></extra>"))
+    # Anotación de ODATA
+    fig.add_annotation(x=2035, y=nc["datacenters"][6],
+                       text="ODATA Navarra: ~335 GWh/año<br>(único datacenter identificado)",
+                       showarrow=True, arrowhead=1, ay=-40, ax=30,
+                       font=dict(size=9, color="#9c27b0"), bgcolor="rgba(255,255,255,.92)",
+                       bordercolor="#9c27b0", borderpad=3)
+    fig.update_xaxes(title_text="Año")
+    fig.update_yaxes(title_text="GWh / año")
+    fig.update_layout(title_text="Nuevas cargas UPME 2026-2040: la que aparece y la que no",
+                      legend=dict(orientation="h", y=1.14, x=0))
+    return {"fig": fig, "leyenda": _leyenda(
+        "Las cargas nuevas de la UPME: quién crece, quién se aplana, quién no aparece",
+        "Grandes consumidores (petróleo, minería, cemento) crecen hasta 2030 y se aplanan. "
+        "Movilidad eléctrica se multiplica ×29 (334 → 9.604 GWh). Centros de datos: <0,3 % "
+        "de la demanda a 2040.",
+        f"La UPME proyecta {nc['movilidad_elec'][-1]:,.0f} GWh de movilidad eléctrica en 2040 "
+        f"(×29 vs 2026) y {nc['datacenters'][-1]:,.0f} GWh de centros de datos. ODATA Navarra "
+        f"(Aligned Data Centers) es el único datacenter identificado con certeza: 105→335 GWh. "
+        f"La palabra 'datacenter' no aparece en las 69 páginas del documento UPME.",
+        "La industria global de datacenters decide en 18 meses dónde instala cientos de MW. "
+        "Un método de proyección por transcripción (quien pidió conexión, existe; quien no, no) "
+        "es defendible para cargas industriales de maduración larga, pero deja una ventana ciega "
+        "para los centros de datos.",
+        "UPME — Proyección 2026-2040, anexo resultados · González Sierra (2026)")
+    }
+
+
+def fig_dem_06_anomalias_enso(ctx: dict) -> dict | None:
+    """Anomalías de demanda por episodio ENSO + datos del ONI actual."""
+    ae = ANOMALIAS_ENSO_DEMANDA
+    fig = _fig(ctx, 400)
+    colores_bar = [ROJO if "Niño" in e else AZUL for e in ae["episodio"]]
+    fig.add_trace(go.Bar(x=ae["episodio"], y=ae["anomalia_pct"],
+                         name="Anomalía media (%)", marker_color=colores_bar,
+                         text=[f"+{v:.2f} %" for v in ae["anomalia_pct"]],
+                         textposition="outside",
+                         hovertemplate="%{x}<br>Anomalía: +%{y:.2f} %<extra></extra>"))
+    # Línea de variación típica mensual
+    fig.add_hline(y=1.5, line=dict(color=GRIS, dash="dot"),
+                  annotation_text="Variación mensual típica: ±1,5 %",
+                  annotation_font_size=9, annotation_position="top right")
+    # ONI actual del contexto
+    nino = ctx.get("nino", pd.DataFrame())
+    if isinstance(nino, pd.DataFrame) and not nino.empty and "ONI" in nino.columns:
+        oni_ult = float(nino["ONI"].dropna().iloc[-1]) if not nino["ONI"].dropna().empty else None
+        if oni_ult is not None and oni_ult > 0.5:
+            fig.add_annotation(x=3, y=max(ae["anomalia_pct"]) * 0.85,
+                               text=f"ONI actual: {oni_ult:+.2f} °C<br>(El Niño en formación)",
+                               showarrow=False, font=dict(size=10, color=ROJO),
+                               bgcolor="rgba(255,255,255,.9)", bordercolor=ROJO, borderpad=4)
+    fig.update_xaxes(title_text="Episodio ENSO")
+    fig.update_yaxes(title_text="Anomalía de demanda (%)")
+    fig.update_layout(title_text="El Niño eleva la demanda: anomalías por episodio (residuo STL)",
+                      yaxis_range=[0, max(ae["anomalia_pct"]) * 1.4])
+    return {"fig": fig, "leyenda": _leyenda(
+        "Anomalías de demanda del SIN por episodio de El Niño",
+        "Residuo de una descomposición STL (ventana de tendencia 25 meses) sobre la serie "
+        "mensual desestacionalizada. La anomalía es el efecto neto de El Niño sobre el consumo, "
+        "limpio de estacionalidad y tendencia.",
+        f"El Niño 2023-24 elevó la demanda +{ae['anomalia_pct'][2]:.2f} %: el episodio de "
+        f"mayor impacto del siglo. El de 2026 lleva +{ae['anomalia_pct'][3]:.2f} % provisional. "
+        f"La variación mensual típica es ±1,5 %, así que El Niño añade un efecto real y medible "
+        f"pero no es el único factor.",
+        "Canal térmico: cada +1 °C de temperatura sostiene +2,1 % de demanda nacional "
+        "(IC 95 %: 1,8–2,4). Un episodio de El Niño que sostenga +0,5 °C por encima de lo "
+        "normal equivale a ~1 punto porcentual de demanda adicional durante meses.",
+        "González Sierra (2026) · STL sobre DemaReal/Sistema (XM) · ONI NOAA/CPC")
+    }
+
+
+def fig_dem_07_sensibilidad_termica(ctx: dict) -> dict | None:
+    """Sensibilidad térmica regional: Caribe vs Bogotá."""
+    st_data = SENSIBILIDAD_TERMICA
+    fig = _fig(ctx, 380)
+    regiones = st_data["region"]
+    pcts = st_data["pct_por_C"]
+    ic_lo = st_data["ic_inf"]
+    ic_hi = st_data["ic_sup"]
+    errores = [[p - lo for p, lo in zip(pcts, ic_lo)],
+               [hi - p for p, hi in zip(pcts, ic_hi)]]
+    colores = [NARANJA, AMBAR, AZUL]
+    fig.add_trace(go.Bar(x=regiones, y=pcts, marker_color=colores,
+                         error_y=dict(type="data", symmetric=False,
+                                      array=errores[1], arrayminus=errores[0]),
+                         text=[f"+{v:.2f} %/°C" for v in pcts], textposition="outside",
+                         hovertemplate="%{x}<br>+%{y:.2f} %/°C<br>IC 95%%<extra></extra>"))
+    fig.add_hline(y=2.1, line=dict(color=GRIS, dash="dot"),
+                  annotation_text="SIN nacional: +2,1 %/°C", annotation_font_size=9)
+    fig.update_xaxes(title_text="Región")
+    fig.update_yaxes(title_text="Sensibilidad (% por °C)")
+    fig.update_layout(title_text="Sensibilidad térmica de la demanda: Caribe responde el doble",
+                      yaxis_range=[0, max(ic_hi) * 1.3])
+    return {"fig": fig, "leyenda": _leyenda(
+        "Sensibilidad térmica: por cada grado, el Caribe consume ~2× más que Bogotá",
+        "Regresión diaria con controles de tipo de día, mes y año, errores robustos a "
+        "autocorrelación. Caribe con datos NASA POWER (MERRA-2): +2,46 %/°C (IC 2,10–2,81). "
+        "Bogotá: +1,04 %/°C (IC 0,69–1,38). Los intervalos no se solapan.",
+        f"Caribe: +{pcts[0]:.2f} %/°C · Bogotá: +{pcts[2]:.2f} %/°C. La demanda del Caribe "
+        f"responde aproximadamente el doble por cada grado de más. Bogotá a 2.600 m también "
+        f"tiene sensibilidad positiva (domina el efecto de refrigeración sobre calefacción).",
+        "En El Niño 2023-24, la anomalía del Caribe promedió +1,59 % contra +0,85 % del SIN. "
+        "En 2026, el Caribe crece +9,3 % YTD vs +5,6 % nacional, pero está confundido con la "
+        "entrada de grandes consumidores industriales (refinación, siderurgia, cemento).",
+        "González Sierra (2026) · NASA POWER (MERRA-2) · IDEAM · DemaReal/Sistema")
+    }
+
+
+def fig_dem_08_crecimiento_regional(ctx: dict) -> dict | None:
+    """Crecimiento de demanda 2026 por región (YTD vs 2025)."""
+    cr = CRECIMIENTO_REGIONAL_2026
+    fig = _fig(ctx, 380)
+    regiones = cr["region"]
+    crec = cr["crec_pct"]
+    colores = [ROJO if v > 7 else (NARANJA if v > 5 else AZUL) for v in crec]
+    fig.add_trace(go.Bar(x=regiones, y=crec, marker_color=colores,
+                         text=[f"+{v:.1f} %" for v in crec], textposition="outside",
+                         hovertemplate="%{x}<br>Crecimiento YTD: +%{y:.1f} %<extra></extra>"))
+    fig.add_hline(y=5.6, line=dict(color=GRIS, dash="dot"),
+                  annotation_text="SIN nacional: +5,6 %", annotation_font_size=9)
+    fig.update_xaxes(title_text="Región")
+    fig.update_yaxes(title_text="Crecimiento YTD 2026 vs 2025 (%)")
+    fig.update_layout(title_text="Crecimiento regional 2026: el Caribe lidera (pero no solo por clima)",
+                      yaxis_range=[0, max(crec) * 1.3])
+    return {"fig": fig, "leyenda": _leyenda(
+        "Crecimiento regional de la demanda en 2026 (acumulado vs mismo tramo de 2025)",
+        f"El Caribe crece +{crec[0]:.1f} % en lo corrido de 2026, casi el doble del SIN "
+        f"nacional (+{crec[1]:.1f} %). Pero ese crecimiento está confundido con la entrada de "
+        f"grandes consumidores industriales de la propia costa (refinación, siderurgia, cemento).",
+        "El Caribe es la región más sensible a la temperatura (+2,46 %/°C) y la que más crece "
+        "en 2026. La superposición de tendencia, cargas nuevas y El Niño es la historia: "
+        "no hace falta exagerar el papel del fenómeno.",
+        "La demanda real está escribiendo una trayectoria intermedia en energía y exigente en "
+        "potencia. Elegir escenario exige mirar los datos que van llegando: el clima, las "
+        "conexiones industriales que se materializan, la temperatura.",
+        "Pronóstico oficial semanal por subáreas (XM) · DemaReal/Sistema")
+    }
+
+
+def fig_dem_09_tasas_crecimiento(ctx: dict) -> dict | None:
+    """Tasas de crecimiento por período + comparación con proyección UPME."""
+    tc = TASAS_CRECIMIENTO
+    fig = _fig(ctx, 360)
+    periodos = [t["periodo"] for t in tc]
+    tasas = [t["tasa_pct"] for t in tc]
+    colores = [ROJO if t > 3.5 else (NARANJA if t > 3.0 else AZUL) for t in tasas]
+    fig.add_trace(go.Bar(x=periodos, y=tasas, marker_color=colores,
+                         text=[f"{v:.2f} %" for v in tasas], textposition="outside",
+                         hovertemplate="%{x}<br>Tasa: %{y:.2f} % anual<extra></extra>"))
+    # UPME como referencia
+    fig.add_hline(y=2.46, line=dict(color=AZUL, dash="dot"),
+                  annotation_text="UPME base: 2,46 %", annotation_font_size=9)
+    fig.add_hline(y=3.05, line=dict(color=ROJO, dash="dash"),
+                  annotation_text="UPME + cargas: 3,05 %", annotation_font_size=9)
+    fig.update_xaxes(title_text="Período")
+    fig.update_yaxes(title_text="Tasa de crecimiento anual compuesta (%)")
+    fig.update_layout(title_text="La demanda colombiana de esta década crece más rápido que la anterior",
+                      yaxis_range=[0, max(tasas) * 1.4])
+    return {"fig": fig, "leyenda": _leyenda(
+        "Tasas de crecimiento de la demanda del SIN por período",
+        "Tasas compuestas anuales. La década 2020-2025 (3,68 %) tiene la pendiente más alta "
+        "del siglo, aunque parte del mínimo de la pandemia. Desde 2023: 2,8 %. Últimos 12 "
+        "meses: 4,1 %.",
+        f"La proyección UPME espera 2,46 % (base) y 3,05 % (con cargas nuevas). Los últimos "
+        f"12 meses ({tasas[-1]:.1f} %) ya corren por encima de ambas. Los años de +5 % "
+        f"(2023 y 2026) son exactamente los años con El Niño.",
+        "El canal térmico explica 1-1,5 puntos porcentuales del incremento en años Niño. "
+        "El resto es tendencia y cargas nuevas entrando en simultáneo. La superposición de "
+        "los tres factores es la historia.",
+        "DemaReal/Sistema (XM, 2000–2026) · UPME Proyección 2026-2040")
+    }
+
+
+def fig_dem_10_registros_pico(ctx: dict) -> dict | None:
+    """Récords de potencia del SIN y estacionalidad del pico."""
+    rd = _resumen_demanda(ctx)
+    fig = make_subplots(rows=1, cols=2, column_widths=[0.45, 0.55],
+                        subplot_titles=("Récords recientes de potencia", "Estacionalidad del pico anual"))
+    # Récords
+    rp = RECORDS_POTENCIA
+    fig.add_trace(go.Bar(x=[r["fecha"] for r in rp], y=[r["potencia_MW"] for r in rp],
+                         marker_color=[NARANJA, ROJO],
+                         text=[f"{r['potencia_MW']:,} MW" for r in rp], textposition="outside",
+                         name="Récords"), row=1, col=1)
+    fig.add_hline(y=12142, line=dict(color=AMBAR, dash="dot"),
+                  annotation_text="UPME base 2026: 12.142 MW", annotation_font_size=8,
+                  row=1, col=1)
+    # Estacionalidad: mes del pico anual
+    meses_pico = ["Dic", "Dic", "Dic", "Nov", "Oct", "Dic", "Dic", "Sep", "Dic", "Dic",
+                  "Dic", "Dic", "Ago"]
+    anios_pico = list(range(2013, 2027))
+    colores_mes = [ROJO if m == "Ago" else AZUL for m in meses_pico]
+    fig.add_trace(go.Bar(x=[str(a) for a in anios_pico], y=list(range(len(meses_pico))),
+                         marker_color=colores_mes, text=meses_pico, textposition="inside",
+                         name="Mes del pico anual", showlegend=False,
+                         hovertemplate="%{x}: pico en %{text}<extra></extra>"), row=1, col=2)
+    fig.update_yaxes(visible=False, row=1, col=2)
+    fig.update_xaxes(title_text="Año", row=1, col=2)
+    fig.update_layout(height=380, title_text="El récord de agosto 2026: fuera de temporada",
+                      showlegend=False)
+    return {"fig": fig, "leyenda": _leyenda(
+        "Récords de potencia y estacionalidad: el pico se movió",
+        "Izquierda: récords recientes de potencia del SIN. Derecha: mes del pico anual desde "
+        "2013. Desde 2013 el pico se acomodaba entre sept-dic; en 2026 llegó en agosto.",
+        f"Récord histórico: 12.576 MW el 20 de agosto de 2026 a la hora 20. Supera en 2,9 % "
+        f"el récord anterior (12.220 MW, dic-2025). La UPME proyectaba 12.142 MW para todo "
+        f"2026 (base): fue superada antes de que el documento circulara.",
+        "Un máximo histórico en agosto no es solo un número más alto: es la curva de demanda "
+        "comportándose distinto. La simultaneidad con El Niño (ONI cruzando umbral), la "
+        "tendencia más empinada del siglo y las cargas nuevas entrando es lo que define el "
+        "riesgo.",
+        "Registros del mercado SIN (XM) · UPME Proyección 2026-2040 · González Sierra (2026)")
+    }
+
+
+# ==============================================================================
+# Registro de figuras del módulo de demanda
+# ==============================================================================
+
+FIGURES_DEMANDA: dict[str, tuple] = {
+    "dem_serie":       (fig_dem_01_serie_diaria,     "demanda", "Demanda diaria: energía y potencia"),
+    "dem_perfil":      (fig_dem_02_perfil_horario,   "demanda", "Perfil horario por tipo de día"),
+    "dem_fc":          (fig_dem_03_factor_carga,     "demanda", "Factor de carga histórico y proyección"),
+    "dem_upme":        (fig_dem_04_proyeccion_upme,  "demanda", "Proyección UPME 2026-2040"),
+    "dem_cargas":      (fig_dem_05_nuevas_cargas,    "demanda", "Nuevas cargas: la que aparece y la que no"),
+    "dem_enso":        (fig_dem_06_anomalias_enso,   "demanda", "Anomalías de demanda por episodio ENSO"),
+    "dem_termica":     (fig_dem_07_sensibilidad_termica, "demanda", "Sensibilidad térmica regional"),
+    "dem_regional":    (fig_dem_08_crecimiento_regional, "demanda", "Crecimiento regional 2026"),
+    "dem_tasas":       (fig_dem_09_tasas_crecimiento,"demanda", "Tasas de crecimiento por período"),
+    "dem_records":     (fig_dem_10_registros_pico,   "demanda", "Récords de potencia y estacionalidad"),
+}
+
+DEMANDA_GRUPOS = [
+    ("demanda", "📊 Demanda del SIN: nivel, forma y récords"),
+]
+
+
+# ==============================================================================
+# Función principal de renderizado de la pestaña
+# ==============================================================================
+
+def render_tab_demanda(ctx: dict, filtros: dict) -> None:
+    """Pestaña 📈 · Demanda del SIN: la curva que los embalses deben sostener.
+
+    Análisis de demanda eléctrica del SIN colombiano usando datos de XM y múltiples
+    fuentes complementarias: UPME (proyecciones), NOAA/CPC (ONI), NASA POWER (temperatura),
+    IDEAM (estaciones), CREG (regulación) y análisis publicados.
+    """
+    st.markdown(
+        "### 📈 Demanda del SIN\n\n"
+        "**Fuentes externas:** "
+        "UPME — Proyección de demanda 2026-2040, Rev. Julio 2026 · "
+        "NOAA CPC — ONI (ya cargado por la app base) · "
+        "NASA POWER (MERRA-2) — Temperatura diaria · "
+        "IDEAM — Estaciones automáticas · "
+        "CREG — Resoluciones regulatorias · "
+        "González Sierra, M. (2026). *La demanda que nadie está mirando*. "
+        "[gonzalezsierra.co/estudios/demanda-que-nadie-esta-mirando.html]"
+        "(https://gonzalezsierra.co/estudios/demanda-que-nadie-esta-mirando.html)"
+    )
+    st.info(
+        "📊 **Datos y fuentes.** Los indicadores de la ventana actual salen de "
+        "`DemaReal/Sistema` de XM (API Bienda), la misma métrica que alimenta las demás "
+        "pestañas. Las proyecciones, sensibilidades térmicas, anomalías ENSO y récords "
+        "históricos vienen de las fuentes citadas en cada figura: UPME (Proyección 2026-2040, "
+        "Rev. Julio 2026), NOAA/CPC (ONI), NASA POWER (MERRA-2), IDEAM, CREG y análisis "
+        "complementarios.", icon="ℹ️")
+
+    # KPIs principales
+    rd = _resumen_demanda(ctx)
+    if rd:
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Pico de la ventana",
+                   f"{rd['pico_mw']:,.0f} MW",
+                   f"H{rd['pico_hora']:02d} · {rd['pico_fecha']}" if rd['pico_hora'] else "—")
+        c2.metric("Energía total", f"{rd['energia_GWh']:,.1f} GWh",
+                   f"{rd['dias']} días de ventana")
+        c3.metric("Factor de carga", f"{rd['fc_ventana']:.3f}" if rd['fc_ventana'] else "—",
+                   f"media {rd['media_MW']:,.0f} MW" if rd.get('media_MW') else "")
+        c4.metric("Demanda media", f"{rd['media_MW']:,.0f} MW" if rd.get('media_MW') else "—",
+                   f"tendencia {rd['tasa_ventana_pct']:+.1f} %" if rd.get('tasa_ventana_pct') and not np.isnan(rd['tasa_ventana_pct']) else "")
+        # ONI actual
+        nino = ctx.get("nino", pd.DataFrame())
+        if isinstance(nino, pd.DataFrame) and not nino.empty and "ONI" in nino.columns:
+            oni_vals = nino["ONI"].dropna()
+            oni_ult = float(oni_vals.iloc[-1]) if not oni_vals.empty else float("nan")
+            fase_txt = "🔴 El Niño" if oni_ult > 0.5 else ("🔵 La Niña" if oni_ult < -0.5 else "⚪ Neutral")
+            c5.metric("ONI actual", f"{oni_ult:+.2f} °C", fase_txt,
+                       delta_color="inverse" if oni_ult > 0.5 else "off")
+        else:
+            c5.metric("ONI actual", "—")
+
+    st.markdown("#### Los datos de la ventana (XM)")
+
+    # Renderizar figuras
+    for clave_grp, titulo_grp in DEMANDA_GRUPOS:
+        claves = [k for k, (_f, g, _t) in FIGURES_DEMANDA.items() if g == clave_grp]
+        if not claves:
+            continue
+        for i, clave in enumerate(claves):
+            fn, _grupo, titulo = FIGURES_DEMANDA[clave]
+            with st.expander(f"📊 {titulo}", expanded=(i < 2)):
+                try:
+                    res_f = figura_cacheada(f"demanda:{clave}", fn, ctx)
+                except Exception as exc:
+                    st.error(f"No se pudo construir *{titulo}*: `{type(exc).__name__}: {str(exc)[:220]}`")
+                    bitacora(f"figura demanda {titulo}: {exc}", "warn")
+                    continue
+                if not res_f or res_f.get("fig") is None:
+                    st.info(f"Sin datos suficientes para *{titulo}* en esta ventana. "
+                            "Amplíe la ventana o cambie a modo *Auto* para más datos.")
+                    continue
+                st.plotly_chart(res_f["fig"], use_container_width=True,
+                                config={"displaylogo": False}, key=_clave_fig(clave))
+                if res_f.get("leyenda"):
+                    st.caption(res_f["leyenda"])
+
+    # Indicadores a vigilar
+    st.divider()
+    st.markdown("#### 🔭 Cinco indicadores para vigilar el verano 2026-27")
+    st.caption("Las cinco señales que definen si la demanda corre por delante de la "
+               "proyección, basadas en análisis de múltiples fuentes.")
+    df_ind = pd.DataFrame(INDICADORES_VIGILAR)
+    st.dataframe(df_ind, use_container_width=True, hide_index=True, height=280)
+
+    # Respuesta de la demanda: marco regulatorio
+    st.divider()
+    st.markdown("#### ⚖️ Respuesta de la demanda: el marco regulatorio")
+    st.markdown("""
+    **La regulación ya existe.** El programa permanente de respuesta de la demanda
+    (Resolución CREG 101 111 de 2026) permite que los usuarios —individualmente o
+    agrupados mediante un representante— oferten reducciones de consumo en la bolsa
+    de energía, con remuneración por la energía verificada.
+
+    | Instrumento | Norma | Escala | Estado |
+    |---|---|---|---|
+    | Demanda Desconectable Voluntaria | Res. CREG 071/2006 | Respaldo de generadores | Vigente (20 años) |
+    | Programa transitorio Niño 2023-24 | Res. CREG 101 043/2024 | ~0,5 GWh/día (0,2 %) | Expiró |
+    | Programa permanente | Res. CREG 101 111/2026 | Línea base horaria, agregadores | Vigente desde Jun-2026 |
+    | Incentivos eficiente (transitorio) | Res. CREG 101 120/2026 | Usuarios regulados, estrechez | Vigente |
+    | Medición avanzada | Res. CREG 101 001/2022 | Meta 75 % a 2030 | <1 % avance físico |
+
+    **La brecha está en tres lugares:**
+    1. **Patrón temporal**: cada avance nace al calor de un Niño.
+    2. **Escala de partida**: 0,2 % de la demanda diaria es el punto de arranque.
+    3. **Medición**: sin medidor horario no hay línea base residencial; sin línea base,
+       el usuario regulado no puede ofertar reducción.
+    """)
+
+    # Metodología
+    with st.expander("📐 Notas metodológicas del módulo de demanda", expanded=False):
+        st.markdown("""
+        **Serie de demanda.** Toda la historia observada proviene de los registros históricos
+        del mercado (demanda comercial horaria de XM). Existe una segunda serie oficial
+        (demanda real) con una brecha estable cercana al 1,5 %.
+
+        **Factor de carga.** FC = E_año / (P_max × 8.760 h). Se calcula para la ventana
+        actual y se compara con el histórico 2000-2025 y la proyección UPME.
+
+        **Anomalías.** Residuo de una descomposición STL con ventana de tendencia de 25 meses.
+        Ventanas más largas amplifican el efecto ENSO estimado y no se usan.
+
+        **Sensibilidad térmica.** Regresión diaria con controles de tipo de día, mes y año,
+        errores robustos a autocorrelación. NASA POWER (MERRA-2, T2M diaria) como índice
+        homogéneo de variabilidad; robustez con estaciones IDEAM.
+
+        **Tasas UPME.** Calculadas directamente del anexo de datos publicado (ver. Ago-2026).
+        Los promedios del documento soporte usan una convención de cálculo distinta.
+
+        **Demanda regional.** Participaciones del pronóstico oficial semanal por subáreas
+        aplicadas a la demanda nacional observada.
+
+        **Cifras inter-artículos.** Las comparaciones con el estudio de oferta usan
+        únicamente números impresos en esa publicación.
+
+        **Fuentes completas:**
+        - UPME — Proyección de demanda 2026-2040, Rev. Julio 2026 y anexo.
+        - Registros históricos del mercado — demanda comercial horaria del SIN (XM), 2000→2026.
+        - NOAA Climate Prediction Center — ONI y anomalías Niño 3.4.
+        - NASA POWER (MERRA-2) — temperatura diaria a 2 m, 2015-2026.
+        - IDEAM — estaciones automáticas de Barranquilla, Bucaramanga, Montería y Valledupar.
+        - CREG — Resoluciones 071/2006, 101 001/2022, 101 043/2024, 101 054/2024,
+          101 111/2026, 101 120/2026; Ley 1715/2014.
+        - González Sierra, M. et al. — reconciliación jerárquica con preservación de forma,
+          Scientific Reports (2026).
+        """)
+
+    # Fuentes de datos
+    st.divider()
+    st.markdown(
+        '<div class="autoria">'
+        "📚 <b>Fuentes de datos:</b> XM (API Bienda - DemaReal/Sistema, DemaMaxPot/Sistema), "
+        "UPME (Proyección de demanda 2026-2040), NOAA/CPC (ONI), NASA POWER (MERRA-2), "
+        "IDEAM (estaciones automáticas), CREG (resoluciones regulatorias), y análisis "
+        "complementarios de González Sierra, M. (2026)."
+        "</div>", unsafe_allow_html=True)
+
+
 # 10 · MÓDULO «SIN NODAL» (v4.2) — precios marginales nodales bajo el enfoque
 #      del trabajo de grado «Modelamiento estocástico de los precios
 #      de la energía en un mercado de precios marginales nodales con alta
