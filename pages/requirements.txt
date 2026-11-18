@@ -4,3 +4,8 @@ numpy==2.4.3
 pandas==3.0.2
 plotly==6.5.2
 requests==2.33.1
+
+# Dependencias de Streamlit no incluidas en Pyodide. Sin declararlas aquí,
+# `stlite web` no las agrega al snapshot y el navegador las busca en PyPI.
+itsdangerous==2.2.0
+python-multipart==0.0.34
