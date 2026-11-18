@@ -1,0 +1,17 @@
+{
+  "name": "dashboard-sin-nodal-pages",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "playwright test"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@stlite/browser": "1.12.2",
+    "@stlite/cli": "0.5.2"
+  }
+}

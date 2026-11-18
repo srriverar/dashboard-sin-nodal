@@ -4039,8 +4039,9 @@ def fig_v4_05_enso_economico(ctx: dict) -> dict | None:
     if dia is not None:
         paneles.append("gasto")
     titulos = {"mensual": f"Costo marginal medio mensual por fase ENSO ({len(d)} meses)",
-               "fases": "Costo medio por fase: cuanto agrega El Nino",
-               "gasto": f"Gasto diario de la ventana ({len(dia)} dias) y acumulado"}
+               "fases": "Costo medio por fase: cuanto agrega El Nino"}
+    if dia is not None:
+        titulos["gasto"] = f"Gasto diario de la ventana ({len(dia)} dias) y acumulado"
     hay_margen = (hist_ok and "Margen_pct_mean" in d
                   and pd.to_numeric(d.get("Margen_pct_mean"), errors="coerce").notna().any())
     specs = [[{"secondary_y": True}] if (k == "gasto" or (k == "mensual" and hay_margen))

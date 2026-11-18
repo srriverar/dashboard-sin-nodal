@@ -273,6 +273,34 @@ que Streamlit Cloud pueda leerlo.
   serie ENSO versionada en el repo (las pestañas de mercado quedarán vacías, con aviso explícito).
 * Para forzar datos frescos: `Forzar descarga API` + botón **♻️ Recargar**.
 
+## 4a · GitHub Pages (versión histórica en el navegador)
+
+GitHub Pages no ejecuta un servidor Streamlit. Esta edición empaqueta el tablero con
+[Stlite](https://github.com/whitphx/stlite) para que Python se ejecute en el navegador. Usa
+los CSV de `data/reference` del repositorio: incluye el panel ENSO, los costos marginales
+mensuales, descargas de CSV y una simulación nodal con perfiles nominales. No muestra datos
+horarios en vivo ni calibra el modelo con una ventana real de XM. Para eso, usa Streamlit (§2 o §4).
+
+1. En **Settings → Pages → Build and deployment**, elige **GitHub Actions** como *Source*.
+2. Fusiona el PR a `main`. El flujo **GitHub Pages** construye, prueba y publica el sitio con
+   cada cambio en `main`. Si ya fusionaste, lánzalo desde **Actions → GitHub Pages → Run workflow**
+   sobre `main`.
+3. Cuando termine el despliegue, abre <https://srriverar.github.io/dashboard-sin-nodal/>.
+
+La primera visita descarga el entorno Python, así que puede tardar más que las siguientes.
+El sitio publicado incluye ese entorno; solo el empaquetado descarga dependencias desde npm,
+PyPI y el CDN de Pyodide. Para probarlo localmente con Node.js 22.12+ y Python 3:
+
+```sh
+npm ci --prefix pages
+npm run build --prefix pages
+python3 -m http.server 8000 --directory pages/dist
+```
+
+Abre <http://localhost:8000>. Para las pruebas de navegador, instala Chromium con
+`cd pages && npx playwright install chromium` y ejecuta `npm test` en `pages/`.
+Para actualizar las series, regenera y versiona los CSV de referencia (§2), no `pages/dist/`.
+
 ## 4b · Mapa de pestañas (v4 del tablero)
 
 | Pestaña | Contenido |
