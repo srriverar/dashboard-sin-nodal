@@ -1,0 +1,6 @@
+# El CLI de Stlite 0.5.2 usa Pyodide 314.0.3 (Python 3.14 en WebAssembly).
+# Streamlit se incluye en @stlite/browser; las versiones nativas no cambian.
+numpy==2.4.3
+pandas==3.0.2
+plotly==6.5.2
+requests==2.33.1

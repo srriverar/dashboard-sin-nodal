@@ -16,3 +16,8 @@ venv/
 # streamlit
 .secrets.toml
 .streamlit/secrets.toml
+# GitHub Pages: dependencias, salida del empaquetado y resultados del navegador
+/pages/node_modules/
+/pages/dist/
+/pages/test-results/
+/pages/playwright-report/
